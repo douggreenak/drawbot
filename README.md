@@ -5,6 +5,27 @@ web/        the app (Material 3 Expressive, Web Serial) — open in Chrome/Edge
 firmware/   apply_drawbot.py — patches stock Marlin 2.1.x Ender-3 config for pen plotting
 ```
 
+## Screenshots
+
+![Overview](docs/screenshots/00-overview.png)
+
+| Connected & ready | Paused mid-job (35%) | Finished |
+|---|---|---|
+| ![](docs/screenshots/01-ready-to-draw.png) | ![](docs/screenshots/03-paused-midjob.png) | ![](docs/screenshots/04-finished.png) |
+
+| Servo mode | Pre-flight safety dialog | Dark theme | Mobile |
+|---|---|---|---|
+| ![](docs/screenshots/06-servo-mode.png) | ![](docs/screenshots/07-safety-dialog.png) | ![](docs/screenshots/09-dark-theme.png) | ![](docs/screenshots/10-mobile.png) |
+
+## Tests
+
+`cd tests && npm install && npm test` drives the real UI in headless Chrome against a **simulated Marlin** (`web/mock-serial.js`, also usable as a demo: open `index.html?mock`).
+The simulator models Marlin's 128-byte RX buffer, `ok` replies, positions and pen state, and records every pen-down move.
+Five label datasets (numbered strip, symbols + two-line labels, horizontal text, servo lift with 40 labels, single-label edge case) plus pause/resume, stop, jog and safety-dialog scenarios run end-to-end;
+each dataset is checked for: all lines acknowledged, no buffer overflow, ink length and bounding box matching the design (≤0.05 mm), one pen-down per stroke, pen up and parked at the end.
+Results with images of what the simulated pen drew: **[docs/TEST_RESULTS.md](docs/TEST_RESULTS.md)** (67/67 passing).
+This validates the software and the G-code protocol handling, not real hardware or Marlin's actual motion.
+
 ## 1. Run the app
 ```
 cd web && python3 -m http.server 8765      # then open http://localhost:8765

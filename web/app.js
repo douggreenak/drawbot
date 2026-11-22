@@ -134,7 +134,7 @@
     if (!W || !H) return;
     cv.width = W * dpr; cv.height = H * dpr;
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const m = 16, scale = (W - 2 * m) / s.bedW;
+    const m = 28, scale = (W - 2 * m) / s.bedW;
     geo = { m, scale, W, H };
     const P = (x, y) => [m + x * scale, H - m - y * scale];
 
@@ -307,7 +307,7 @@
   };
   $('btnPause').onclick = () => {
     const p = $('btnPause').querySelector('span');
-    if (!printer.paused) { printer.pause(); p.textContent = 'Resume'; $('progText').textContent = 'Pausing…'; }
+    if (!printer.paused) { $('progText').textContent = 'Pausing…'; p.textContent = 'Resume'; printer.pause(); }
     else { printer.resume(); p.textContent = 'Pause'; $('progText').textContent = 'Drawing…'; }
   };
   $('btnStop').onclick = async () => {
@@ -338,5 +338,6 @@
   load(); syncMode();
   Object.keys(SEGS).forEach(id => setSeg(id, segVal(id)));
   relayout(); kickWave();
+  window.DBApp = { state, settings, printer };
   log('sys', 'Ready. Connect over USB, home X Y, set the paper height, then draw.');
 })();

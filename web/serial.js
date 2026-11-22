@@ -98,7 +98,7 @@
       try {
         while (this.queue.length && !this.paused && this.connected) {
           const next = this.queue[0];
-          if (next.len === 0) { this.queue.shift(); this.onAck(next.tag, ''); continue; }
+          if (next.len === 0) { if (this.inflight.length) break; this.queue.shift(); this.onAck(next.tag, ''); continue; } // comment-only lines ack in order, after earlier commands finish
           if (this.inflight.length >= MAX_INFLIGHT || this.inflightChars + next.len > RX_BUDGET) {
             if (this.inflight.length) break;
           }

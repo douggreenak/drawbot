@@ -180,5 +180,5 @@ dialog { border: 0; border-radius: var(--r-xl); background: var(--sc-high); colo
 dialog::backdrop { background: rgba(20, 16, 30, .5); backdrop-filter: blur(3px); }
 dialog h3 { margin: 0 0 8px; font-size: 24px; font-weight: 800; font-variation-settings: "wdth" 112, "wght" 800; }
 dialog p { margin: 0 0 20px; color: var(--on-surface-variant); white-space: pre-line; }
-.snack { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 140%); background: var(--on-surface); color: var(--surface); padding: 14px 22px; border-radius: 18px; font-weight: 500; transition: transform .45s var(--spring); z-index: 10; max-width: 90vw; }
-.snack.show { transform: translate(-50%, 0); }
+.snack { pointer-events: none; position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 140%); background: var(--on-surface); color: var(--surface); padding: 14px 22px; border-radius: 18px; font-weight: 500; transition: transform .45s var(--spring), opacity .2s; opacity: 0; z-index: 10; max-width: 90vw; }
+.snack.show { transform: translate(-50%, 0); opacity: 1; }
