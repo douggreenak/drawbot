@@ -94,7 +94,7 @@
   const fmtTime = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h ? `${h}:${String(m).padStart(2, '0')}h` : `${m}:${String(s % 60).padStart(2, '0')}`; };
 
   // Expressive "cookie" shape for the logo
-  (function blob(lobes = 9, depth = 0.09) {
+  (function blob(lobes = 9, depth = 0.04) {
     const pts = [];
     for (let i = 0; i <= 120; i++) {
       const a = (i / 120) * Math.PI * 2, r = 46 * (1 + depth * Math.cos(lobes * a));
