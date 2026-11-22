@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drawbot Labels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght,wdth@8..144,100..1000,25..151&family=Roboto+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-usb" viewBox="0 0 24 24"><path d="M15 7v4h1v2h-3V5h2l-3-4-3 4h2v8H8v-2.07c.7-.37 1.2-1.08 1.2-1.93 0-1.21-.99-2.2-2.2-2.2-1.21 0-2.2.99-2.2 2.2 0 .85.5 1.56 1.2 1.93V13c0 1.11.89 2 2 2h3v3.05c-.71.37-1.2 1.1-1.2 1.95 0 1.22.99 2.2 2.2 2.2 1.21 0 2.2-.98 2.2-2.2 0-.85-.49-1.58-1.2-1.95V15h3c1.11 0 2-.89 2-2v-2h1V7h-4z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></symbol>
+  <symbol id="i-add" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 5v14h18V5H3zm16 12H5V7h14v10z"/></symbol>
+  <symbol id="i-upa" viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></symbol>
+  <symbol id="i-downa" viewBox="0 0 24 24"><path d="M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z"/></symbol>
+  <symbol id="i-delete" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="brand">
+    <svg class="blob" id="blob" viewBox="-50 -50 100 100" aria-hidden="true"><path id="blobPath"/></svg>
+    <div>
+      <h1>Drawbot</h1>
+      <p>Terminal block labels, drawn by your Ender&nbsp;3</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <span class="chip" id="statusChip"><i class="dot"></i><span id="statusText">Not connected</span></span>
+    <button class="btn filled" id="btnConnect"><svg><use href="#i-usb"/></svg><span>Connect</span></button>
+  </div>
+</header>
+
+<main class="grid">
+  <!-- ============ DESIGN ============ -->
+  <section class="col">
+    <article class="card">
+      <h2>Labels</h2>
+      <p class="hint">One label per line. Use <code>|</code> for two lines of text (<code>L1|24V</code>) and <code>@10</code> at the end for a wider cell. Symbols: Ω µ ° ±</p>
+      <textarea id="labels" rows="9" spellcheck="false"></textarea>
+      <div class="gen">
+        <label class="field sm"><span>Prefix</span><input id="genPrefix" type="text" value="X1:"></label>
+        <label class="field sm"><span>Start</span><input id="genStart" type="number" value="1"></label>
+        <label class="field sm"><span>Count</span><input id="genCount" type="number" value="10" min="1"></label>
+        <label class="field sm"><span>Suffix</span><input id="genSuffix" type="text" value=""></label>
+      </div>
+      <div class="row">
+        <button class="btn tonal" id="btnGen"><svg><use href="#i-add"/></svg><span>Add numbered</span></button>
+        <button class="btn text" id="btnClear"><svg><use href="#i-delete"/></svg><span>Clear</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>Layout</h2>
+      <div class="fields">
+        <label class="field"><span>Cell width <small>mm</small></span><input id="cellW" type="number" step="0.1" value="6"></label>
+        <label class="field"><span>Cell height <small>mm</small></span><input id="cellH" type="number" step="0.1" value="12"></label>
+        <label class="field"><span>Text height <small>mm</small></span><input id="textH" type="number" step="0.1" value="3.5"></label>
+        <label class="field"><span>Padding <small>mm</small></span><input id="pad" type="number" step="0.1" value="0.8"></label>
+        <label class="field"><span>Row length <small>mm</small></span><input id="rowLen" type="number" step="1" value="180"></label>
+        <label class="field"><span>Row gap <small>mm</small></span><input id="rowGap" type="number" step="0.5" value="4"></label>
+      </div>
+      <div class="label-s">Text direction</div>
+      <div class="seg" id="rotSeg" role="radiogroup">
+        <button type="button" data-v="0" role="radio">Horizontal</button>
+        <button type="button" data-v="90" role="radio" class="on">Up ↑</button>
+        <button type="button" data-v="-90" role="radio">Down ↓</button>
+      </div>
+      <div class="switches">
+        <label class="switch"><input type="checkbox" id="borders" checked><i></i><span>Draw cell lines</span></label>
+        <label class="switch"><input type="checkbox" id="shrink" checked><i></i><span>Shrink text to fit</span></label>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ PREVIEW / RUN ============ -->
+  <section class="col main">
+    <article class="card preview">
+      <div class="stats">
+        <div class="stat"><b id="stLabels">0</b><span>labels</span></div>
+        <div class="stat"><b id="stSize">0 × 0</b><span>mm</span></div>
+        <div class="stat"><b id="stStrokes">0</b><span>strokes</span></div>
+        <div class="stat"><b id="stTime">0:00</b><span>est. time</span></div>
+      </div>
+      <div class="canvas-wrap"><canvas id="preview"></canvas></div>
+      <div class="row between">
+        <label class="switch"><input type="checkbox" id="showTravel"><i></i><span>Show pen-up moves</span></label>
+        <span class="hint tight">Drag the drawing to position it on the bed</span>
+      </div>
+    </article>
+
+    <article class="card run">
+      <canvas id="wave" height="28"></canvas>
+      <div class="progress-row"><span id="progText">Ready</span><span id="progPct"></span></div>
+      <div class="row run-btns">
+        <button class="btn filled xl" id="btnStart"><svg><use href="#i-play"/></svg><span>Draw labels</span></button>
+        <button class="btn tonal xl" id="btnPause" disabled><svg><use href="#i-pause"/></svg><span>Pause</span></button>
+        <button class="btn danger xl" id="btnStop" disabled><svg><use href="#i-stop"/></svg><span>Stop</span></button>
+        <button class="btn outlined xl" id="btnDownload"><svg><use href="#i-download"/></svg><span>G-code</span></button>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ MACHINE ============ -->
+  <section class="col">
+    <article class="card">
+      <h2>Move</h2>
+      <div class="row">
+        <button class="btn tonal" id="btnHome"><svg><use href="#i-home"/></svg><span>Home X Y</span></button>
+        <button class="btn text" id="btnBounds"><svg><use href="#i-box"/></svg><span>Trace outline</span></button>
+        <button class="btn text" id="btnOff"><span>Motors off</span></button>
+      </div>
+      <div class="seg small" id="stepSeg">
+        <button type="button" data-v="0.1">0.1</button><button type="button" data-v="1">1</button><button type="button" data-v="10" class="on">10</button><button type="button" data-v="50">50</button>
+      </div>
+      <div class="jog">
+        <button class="btn icon" data-jog="Y" data-dir="1" aria-label="Y+"><svg><use href="#i-up"/></svg></button>
+        <button class="btn icon" data-jog="X" data-dir="-1" aria-label="X-"><svg><use href="#i-left"/></svg></button>
+        <button class="btn icon" data-jog="X" data-dir="1" aria-label="X+"><svg><use href="#i-right"/></svg></button>
+        <button class="btn icon" data-jog="Y" data-dir="-1" aria-label="Y-"><svg><use href="#i-down"/></svg></button>
+        <div class="jogz">
+          <button class="btn icon" data-jog="Z" data-dir="1" aria-label="Z+"><svg><use href="#i-upa"/></svg></button>
+          <span>Z</span>
+          <button class="btn icon" data-jog="Z" data-dir="-1" aria-label="Z-"><svg><use href="#i-downa"/></svg></button>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>Pen</h2>
+      <div class="seg" id="modeSeg" role="radiogroup">
+        <button type="button" data-v="z" class="on">Z axis lift</button>
+        <button type="button" data-v="servo">Servo lift</button>
+      </div>
+      <div class="mode mode-z">
+        <p class="hint">Jog Z until the pen just touches the paper, then press <b>Set paper height</b>. Z is never homed.</p>
+        <div class="fields">
+          <label class="field"><span>Pen up <small>Z mm</small></span><input id="zUp" type="number" step="0.5" value="3"></label>
+          <label class="field"><span>Pen down <small>Z mm</small></span><input id="zDown" type="number" step="0.1" value="0"></label>
+          <label class="field"><span>Z speed <small>mm/min</small></span><input id="zFeed" type="number" step="50" value="900"></label>
+        </div>
+        <button class="btn tonal" id="btnSetZ"><svg><use href="#i-check"/></svg><span>Set paper height (Z = 0)</span></button>
+      </div>
+      <div class="mode mode-servo" hidden>
+        <p class="hint">Hobby servo on the BLTouch header, driven with <code>M280 P0</code>.</p>
+        <div class="fields">
+          <label class="field"><span>Pen up <small>°</small></span><input id="svUp" type="number" min="0" max="180" value="90"></label>
+          <label class="field"><span>Pen down <small>°</small></span><input id="svDown" type="number" min="0" max="180" value="40"></label>
+          <label class="field"><span>Settle <small>ms</small></span><input id="svDelay" type="number" step="10" value="200"></label>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn outlined" id="btnPenUp"><svg><use href="#i-upa"/></svg><span>Pen up</span></button>
+        <button class="btn outlined" id="btnPenDown"><svg><use href="#i-downa"/></svg><span>Pen down</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>Machine</h2>
+      <div class="fields">
+        <label class="field"><span>Draw speed <small>mm/min</small></span><input id="drawFeed" type="number" step="100" value="1800"></label>
+        <label class="field"><span>Travel speed <small>mm/min</small></span><input id="travelFeed" type="number" step="500" value="6000"></label>
+        <label class="field"><span>Origin X <small>mm</small></span><input id="ox" type="number" step="1" value="20"></label>
+        <label class="field"><span>Origin Y <small>mm</small></span><input id="oy" type="number" step="1" value="20"></label>
+        <label class="field"><span>Bed X <small>mm</small></span><input id="bedW" type="number" value="220"></label>
+        <label class="field"><span>Bed Y <small>mm</small></span><input id="bedH" type="number" value="220"></label>
+        <label class="field"><span>Baud rate</span>
+          <select id="baud"><option>115200</option><option>250000</option><option>57600</option></select></label>
+      </div>
+    </article>
+
+    <article class="card console">
+      <h2>Console</h2>
+      <pre id="log" aria-live="polite"></pre>
+      <form id="cmdForm" class="cmd"><input id="cmd" type="text" placeholder="Send G-code…  e.g. M114" autocomplete="off" spellcheck="false"><button class="btn tonal" type="submit">Send</button></form>
+    </article>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <h3 id="dlgTitle"></h3>
+  <p id="dlgBody"></p>
+  <div class="row end"><button class="btn text" id="dlgNo">Cancel</button><button class="btn filled" id="dlgYes">Start anyway</button></div>
+</dialog>
+<div class="snack" id="snack" role="status"></div>
+
+<script src="font.js"></script>
+<script src="layout.js"></script>
+<script src="gcode.js"></script>
+<script src="serial.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
