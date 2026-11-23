@@ -1,0 +1,76 @@
+name: Build firmware
+
+# Compiles Marlin with the Drawbot patch for each Creality board and publishes ready-to-copy SD card
+# packages as assets of the "latest" release (the web app's Firmware card links to them).
+on:
+  push:
+    branches: [main]
+    paths: ['firmware/**', '.github/workflows/firmware.yml']
+  schedule:
+    - cron: '0 6 * * 1'        # weekly: pick up upstream Marlin changes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { board: CrealityV1,   pkg: CrealityV1-melzi,  env: melzi }
+          - { board: CrealityV422, pkg: CrealityV422-RET6, env: STM32F103RE_creality }
+          - { board: CrealityV422, pkg: CrealityV422-RCT6, env: STM32F103RC_creality }
+          - { board: CrealityV427, pkg: CrealityV427-RET6, env: STM32F103RE_creality }
+          - { board: CrealityV427, pkg: CrealityV427-RCT6, env: STM32F103RC_creality }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install platformio
+      - name: Get Marlin and the stock Ender-3 config
+        run: |
+          git clone --depth 1 -b bugfix-2.1.x https://github.com/MarlinFirmware/Marlin.git Marlin
+          B=https://raw.githubusercontent.com/MarlinFirmware/Configurations/bugfix-2.1.x/config/examples/Creality/Ender-3/${{ matrix.board }}
+          curl -sfL $B/Configuration.h     -o Marlin/Marlin/Configuration.h
+          curl -sfL $B/Configuration_adv.h -o Marlin/Marlin/Configuration_adv.h
+      - name: Apply the Drawbot patch
+        run: python3 firmware/apply_drawbot.py Marlin
+      - name: Build
+        run: pio run -d Marlin -e ${{ matrix.env }}
+      - name: Package the SD card contents
+        run: |
+          mkdir -p out/sd
+          STAMP=$(date -u +%Y%m%d%H%M)
+          if [ "${{ matrix.board }}" = "CrealityV1" ]; then
+            cp Marlin/.pio/build/${{ matrix.env }}/firmware.hex out/sd/drawbot-${{ matrix.pkg }}.hex
+            cp firmware/sd-card/FLASHING-1.1.x.txt out/sd/READ-ME-FIRST.txt
+          else
+            # the Creality bootloader only flashes a .bin whose name differs from the one already installed
+            cp Marlin/.pio/build/${{ matrix.env }}/firmware-*.bin out/sd/drawbot-${{ matrix.pkg }}-$STAMP.bin
+            cp firmware/sd-card/FLASHING-4.2.x.txt out/sd/READ-ME-FIRST.txt
+          fi
+          cp firmware/sd-card/pen-test-*.gcode out/sd/
+          mkdir -p out/sd/marlin-config && cp Marlin/Marlin/Configuration.h Marlin/Marlin/Configuration_adv.h out/sd/marlin-config/
+          (cd out/sd && zip -qr ../drawbot-sd-${{ matrix.pkg }}.zip .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drawbot-sd-${{ matrix.pkg }}
+          path: out/drawbot-sd-${{ matrix.pkg }}.zip
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Add the zips to the "latest" release (creates it the first time, replaces the zips afterwards)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create latest --repo "$GITHUB_REPOSITORY" --title "Latest firmware" \
+              --notes "Marlin bugfix-2.1.x patched for Drawbot. Copy the contents of the zip for your board onto the printer's SD card. Built by CI; not tested on hardware."
+          gh release upload latest dist/*.zip --clobber --repo "$GITHUB_REPOSITORY"

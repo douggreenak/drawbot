@@ -216,10 +216,13 @@
 
     <article class="card">
       <h2>Firmware</h2>
-      <p class="hint">Downloads the current stock Marlin Ender-3 config from GitHub, patched for pen plotting (no heaters, M410 stop, servo/Z lift), as a zip with build steps. Compile and flash it with PlatformIO.</p>
-      <label class="field"><span>Board</span><select id="fwBoard"></select></label>
-      <div class="switches"><label class="switch"><input type="checkbox" id="fwServo"><i></i><span>Servo pen lift</span></label></div>
-      <button class="btn tonal" id="btnFirmware"><svg><use href="#i-download"/></svg><span>Download firmware zip</span></button>
+      <p class="hint">Everything the printer needs, built from the latest Marlin: the patched firmware, flashing instructions and a pen-test G-code. Copy the zip's contents to the printer's SD card (4.2.x boards) or flash the .hex over USB (1.1.x boards).</p>
+      <label class="field"><span>Printer board</span><select id="fwBoard"></select></label>
+      <button class="btn filled" id="btnFirmware"><svg><use href="#i-download"/></svg><span>Download SD card package</span></button>
+      <div class="row">
+        <button class="btn text" id="btnConfigs"><span>Marlin configs only</span></button>
+        <label class="switch"><input type="checkbox" id="fwServo" checked><i></i><span>Servo</span></label>
+      </div>
       <p class="hint" id="fwNote"></p>
     </article>
 

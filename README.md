@@ -31,7 +31,7 @@ Results with images of what the simulated pen drew: **[docs/TEST_RESULTS.md](doc
 This validates the software and the G-code protocol handling, not real hardware or Marlin's actual motion.
 
 ## 0. Hosted
-The `web/` folder is a static site (see `vercel.json`); on Vercel it runs over https, which Web Serial needs, so there is no local server to start. The **Firmware** card downloads the current stock Marlin config from GitHub, patched in the browser.
+The `web/` folder is a static site (see `vercel.json`); on Vercel it runs over https, which Web Serial needs, so there is no local server to start. The **Firmware** card downloads a ready-to-copy SD-card package per board (built by `.github/workflows/firmware.yml` from the latest Marlin and published to the `latest` release), or just the patched Marlin configs.
 
 ## 1. Run the app locally
 ```
