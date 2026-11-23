@@ -119,6 +119,7 @@
     const bad = s.ox + d.width > s.bedW + 0.01 || s.oy + d.height > s.bedH + 0.01 || s.ox < 0 || s.oy < 0;
     $('stSize').parentElement.classList.toggle('bad', bad);
     state.outOfBed = bad;
+    if (state.pv) { cancelAnimationFrame(pvRaf); pvRaf = 0; state.pv = null; $('btnPreview').querySelector('span').textContent = 'Preview moves'; }
     draw(); drawBlocks();
   }
 
@@ -145,26 +146,48 @@
     for (let y = 0; y <= s.bedH; y += 10) { const a = P(0, y), b = P(s.bedW, y); cx.globalAlpha = y % 50 ? .3 : .8; cx.beginPath(); cx.moveTo(a[0], a[1]); cx.lineTo(b[0], b[1]); cx.stroke(); }
     cx.globalAlpha = 1;
 
-    // paper footprint
+    // the physical cards: white cells on a faint footprint
     const p0 = P(s.ox, s.oy), p1 = P(s.ox + d.width, s.oy + d.height);
-    cx.fillStyle = css('--primary-container'); cx.globalAlpha = .55;
-    cx.beginPath(); cx.roundRect(p0[0] - 4, p1[1] - 4, p1[0] - p0[0] + 8, p0[1] - p1[1] + 8, 8); cx.fill(); cx.globalAlpha = 1;
+    cx.fillStyle = css('--primary-container'); cx.globalAlpha = .35;
+    cx.beginPath(); cx.roundRect(p0[0] - 4, p1[1] - 4, p1[0] - p0[0] + 8, p0[1] - p1[1] + 8, 6); cx.fill(); cx.globalAlpha = 1;
+    cx.fillStyle = '#ffffff'; cx.strokeStyle = '#b9bfc8'; cx.lineWidth = 1;
+    for (const c of d.cells || []) { const a = P(s.ox + c.x, s.oy + c.y), b = P(s.ox + c.x + c.w, s.oy + c.y + c.h); cx.fillRect(a[0], b[1], b[0] - a[0], a[1] - b[1]); cx.strokeRect(a[0] + .5, b[1] + .5, b[0] - a[0] - 1, a[1] - b[1] - 1); }
     if (state.outOfBed) { cx.strokeStyle = css('--error'); cx.lineWidth = 2; cx.setLineDash([6, 4]); cx.strokeRect(p0[0] - 4, p1[1] - 4, p1[0] - p0[0] + 8, p0[1] - p1[1] + 8); cx.setLineDash([]); }
 
     cx.lineCap = 'round'; cx.lineJoin = 'round';
-    if ($('showTravel').checked) {
-      cx.strokeStyle = css('--tertiary'); cx.globalAlpha = .45; cx.lineWidth = 1; cx.setLineDash([3, 3]); cx.beginPath();
-      let cur = P(0, 0); cx.moveTo(cur[0], cur[1]);
-      for (const st of d.strokes) { const a = P(s.ox + st[0][0], s.oy + st[0][1]); cx.lineTo(a[0], a[1]); const b = P(s.ox + st[st.length - 1][0], s.oy + st[st.length - 1][1]); cx.moveTo(b[0], b[1]); }
-      cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1;
+    const INK = '#0b3d91', DONE = '#00696b';
+    const pv = state.pv;
+    if (pv) {
+      // moves preview: every pen-up travel (dashed) and pen-down stroke, animated up to pv.pos
+      let left = pv.pos;
+      cx.lineWidth = Math.max(1.4, 0.45 * scale);
+      for (const mv of pv.moves) {
+        if (left <= 0) break;
+        const use = Math.min(left, mv.len); left -= use;
+        const pts = pointsUpTo(mv.pts, use);
+        cx.beginPath();
+        pts.forEach((pt, k) => { const a = P(s.ox + pt[0], s.oy + pt[1]); k ? cx.lineTo(a[0], a[1]) : cx.moveTo(a[0], a[1]); });
+        if (mv.down) { cx.setLineDash([]); cx.strokeStyle = INK; cx.globalAlpha = 1; cx.lineWidth = Math.max(1.4, 0.45 * scale); }
+        else { cx.setLineDash([4, 3]); cx.strokeStyle = css('--tertiary'); cx.globalAlpha = .9; cx.lineWidth = 1.2; }
+        cx.stroke();
+        if (left <= 0) { const e = P(s.ox + pts[pts.length - 1][0], s.oy + pts[pts.length - 1][1]); cx.setLineDash([]); cx.globalAlpha = 1; cx.fillStyle = mv.down ? INK : css('--tertiary'); cx.beginPath(); cx.arc(e[0], e[1], 4, 0, 7); cx.fill(); }
+      }
+      cx.setLineDash([]); cx.globalAlpha = 1;
+    } else {
+      if ($('showTravel').checked) {
+        cx.strokeStyle = css('--tertiary'); cx.globalAlpha = .6; cx.lineWidth = 1; cx.setLineDash([3, 3]); cx.beginPath();
+        let cur = P(0, 0); cx.moveTo(cur[0], cur[1]);
+        for (const st of d.strokes) { const a = P(s.ox + st[0][0], s.oy + st[0][1]); cx.lineTo(a[0], a[1]); const b = P(s.ox + st[st.length - 1][0], s.oy + st[st.length - 1][1]); cx.moveTo(b[0], b[1]); }
+        cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1;
+      }
+      cx.lineWidth = Math.max(1.4, 0.45 * scale);
+      d.strokes.forEach((st, i) => {
+        cx.strokeStyle = i < state.doneStrokes ? DONE : INK;
+        cx.beginPath();
+        st.forEach((pt, k) => { const a = P(s.ox + pt[0], s.oy + pt[1]); k ? cx.lineTo(a[0], a[1]) : cx.moveTo(a[0], a[1]); });
+        cx.stroke();
+      });
     }
-    cx.lineWidth = Math.max(1.4, 0.45 * scale);
-    d.strokes.forEach((st, i) => {
-      cx.strokeStyle = i < state.doneStrokes ? css('--tertiary') : css('--primary');
-      cx.beginPath();
-      st.forEach((pt, k) => { const a = P(s.ox + pt[0], s.oy + pt[1]); k ? cx.lineTo(a[0], a[1]) : cx.moveTo(a[0], a[1]); });
-      cx.stroke();
-    });
     cx.restore();
 
     // axis labels
@@ -173,6 +196,53 @@
     cx.textAlign = 'right';
     for (let y = 50; y <= s.bedH; y += 50) cx.fillText(y, m - 3, P(0, y)[1] + 4);
   }
+  // ---- move preview (simulated pen run) ----
+  function pointsUpTo(pts, dist) {
+    const out = [pts[0]]; let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const seg = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      if (acc + seg >= dist) { const t = seg ? (dist - acc) / seg : 0; out.push([pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]); return out; }
+      acc += seg; out.push(pts[i]);
+    }
+    return out;
+  }
+  function buildMoves(strokes) {
+    const moves = []; let cur = [-state_ox(), -state_oy()], total = 0;   // start from the machine origin (0,0)
+    for (const st of strokes) {
+      const t = [cur, st[0]], tl = Math.hypot(st[0][0] - cur[0], st[0][1] - cur[1]);
+      if (tl > 0.01) { moves.push({ pts: t, len: tl, down: false }); total += tl; }
+      let dl = 0; for (let i = 1; i < st.length; i++) dl += Math.hypot(st[i][0] - st[i - 1][0], st[i][1] - st[i - 1][1]);
+      moves.push({ pts: st, len: Math.max(dl, 0.01), down: true }); total += Math.max(dl, 0.01);
+      cur = st[st.length - 1];
+    }
+    return { moves, total };
+  }
+  const state_ox = () => num('ox', 20), state_oy = () => num('oy', 20);
+  let pvRaf = 0;
+  function stopPreview(keep) {
+    cancelAnimationFrame(pvRaf); pvRaf = 0;
+    if (!keep) state.pv = null;
+    $('btnPreview').querySelector('span').textContent = state.pv ? 'Replay moves' : 'Preview moves';
+    draw();
+  }
+  function startPreview() {
+    if (!state.design.strokes.length) return;
+    const { moves, total } = buildMoves(state.design.strokes);
+    const speed = Math.max(total / 8, 60);            // whole run takes ~8 s, never slower than 60 mm/s
+    state.pv = { moves, total, pos: 0 };
+    $('btnPreview').querySelector('span').textContent = 'Skip to end';
+    let last = performance.now();
+    const step = now => {
+      const pv = state.pv; if (!pv) return;
+      pv.pos = Math.min(pv.total, pv.pos + (now - last) / 1000 * speed); last = now;
+      draw();
+      if (pv.pos < pv.total) pvRaf = requestAnimationFrame(step); else stopPreview(true);
+    };
+    pvRaf = requestAnimationFrame(step);
+  }
+  $('btnPreview').onclick = () => {
+    if (pvRaf) { state.pv.pos = state.pv.total; stopPreview(true); } else startPreview();
+  };
   window.addEventListener('resize', () => { draw(); drawBlocks(); });
   function setTheme(t, persist) {
     document.documentElement.dataset.theme = t;

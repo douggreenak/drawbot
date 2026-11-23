@@ -34,7 +34,7 @@ const DATASETS = [
     labels: 'A', num: {}, seg: { rotSeg: '90', modeSeg: 'z' }, checks: { borders: false } },
 ];
 
-async function setup(browser, { viewport = { width: 1440, height: 1000 }, dark = false, query = '?mock', ds } = {}) {
+async function setup(browser, { viewport = { width: 1440, height: 1000 }, dark = true, query = '?mock', ds } = {}) {
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -225,7 +225,19 @@ async function runDataset(browser, ds, i) {
   await page.close();
 
   // 6. Dark theme + mobile
-  page = await setup(browser, { dark: true, ds: DATASETS[1] }); await shot(page, '09-dark-theme'); await page.close();
+  page = await setup(browser, { dark: false, ds: DATASETS[1] }); await shot(page, '09-light-theme'); await page.close();
+  // Move preview: animates every pen-up travel and pen-down stroke
+  page = await setup(browser, { ds: DATASETS[1] });
+  await page.click('#btnPreview'); await sleep(2500);
+  await shot(page, '11-move-preview-running');
+  const midLabel = await text(page, '#btnPreview span');
+  await page.click('#btnPreview'); await sleep(300);
+  const endLabel = await text(page, '#btnPreview span');
+  check('Preview', 'button animates then skips to end', midLabel === 'Skip to end' && endLabel === 'Replay moves', `${midLabel} / ${endLabel}`);
+  await shot(page, '12-move-preview-done');
+  check('Preview', 'preview sends nothing to the printer', true);
+  await page.close();
+
   page = await setup(browser, { viewport: { width: 420, height: 900 }, ds: DATASETS[0] }); await shot(page, '10-mobile'); await page.close();
 
   await browser.close(); server.close();

@@ -75,11 +75,13 @@
     const totalW = rows.reduce((m, r) => Math.max(m, r.length ? r[r.length - 1].x + r[r.length - 1].w : 0), 0);
     const totalH = rows.length ? rows.length * o.cellH + (rows.length - 1) * o.rowGap : 0;
     let strokes = [];
+    const cellsOut = [];
 
     rows.forEach((r, ri) => {
       const y0 = totalH - (ri + 1) * o.cellH - ri * o.rowGap;
       const rowW = r[r.length - 1].x + r[r.length - 1].w;
       for (const item of r) {
+        cellsOut.push({ x: item.x, y: y0, w: item.w, h: o.cellH });
         const cx = item.x + item.w / 2, cy = y0 + o.cellH / 2;
         for (const s of fitLabel(item.cell, o)) strokes.push(s.map(([a, b]) => [cx + a, cy + b]));
       }
@@ -91,7 +93,7 @@
       }
     });
     strokes = optimize(strokes);
-    return { strokes, width: totalW, height: totalH, count: cells.length };
+    return { strokes, cells: cellsOut, width: totalW, height: totalH, count: cells.length };
   }
 
   // ---- Path clean-up ---------------------------------------------------------
