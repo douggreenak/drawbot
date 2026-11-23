@@ -36,7 +36,7 @@
 
   function save() {
     const o = { labels: $('labels').value, seg: {} };
-    NUM_IDS.concat(['genPrefix', 'genStart', 'genCount', 'genSuffix', 'baud']).forEach(i => (o[i] = $(i).value));
+    NUM_IDS.concat(['genPrefix', 'genStart', 'genCount', 'genSuffix', 'baud', 'cardType']).forEach(i => (o[i] = $(i).value));
     CHECK_IDS.forEach(i => (o[i] = $(i).checked));
     Object.keys(SEGS).forEach(i => (o.seg[i] = segVal(i)));
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(o)); } catch (e) { /* private mode */ }
@@ -46,7 +46,7 @@
     let o; try { o = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { o = null; }
     if (!o) return;
     if (typeof o.labels === 'string') $('labels').value = o.labels;
-    NUM_IDS.concat(['genPrefix', 'genStart', 'genCount', 'genSuffix', 'baud']).forEach(i => { if (o[i] !== undefined) $(i).value = o[i]; });
+    NUM_IDS.concat(['genPrefix', 'genStart', 'genCount', 'genSuffix', 'baud', 'cardType']).forEach(i => { if (o[i] !== undefined) $(i).value = o[i]; });
     CHECK_IDS.forEach(i => { if (o[i] !== undefined) $(i).checked = o[i]; });
     Object.entries(o.seg || {}).forEach(([id, v]) => setSeg(id, v));
   }
@@ -127,6 +127,31 @@
   // Measured from the physical marker cards (see README): white ladder frame, each strip hangs from the
   // crossbar above it, a slot below it, and a rail down each side.  All values in mm.
   const CARD = { rail: 5.5, slot: 4, clear: 0.3 };
+  // Marker variants. w = pitch (mm), h = marker height (mm); `src` = where the numbers come from.
+  // Frame (rail/slot/gap) is only measured for the Weidmüller DEK 5 FW cards in the photos; the others reuse it.
+  const WEID = 'Weidmüller datasheet (eshop.weidmueller.com)', PHX = 'Phoenix Contact product page (phoenixcontact.com)';
+  const CARDS = {
+    'dek5fw':   { name: 'Weidmüller DEK 5 FW  (5 × 5, horizontal)', w: 5,   h: 5,    rot: 0,  src: WEID, note: 'Pitch 5.00 mm, 10 markers per strip.' },
+    'dek5-35':  { name: 'Weidmüller DEK 5/3,5 MC FWZ  (3.5 × 5)',   w: 3.5, h: 5,    rot: 0,  src: WEID, note: 'Pitch 3.50 mm, 5 mm high.' },
+    'zb5':      { name: 'Phoenix ZB 5  (5.2 × 10.5)',               w: 5.2, h: 10.5, rot: 90, src: PHX,  note: 'Zack strip, pitch 5.2 mm, text field 5.1 × 10.5 mm, 10 per strip.' },
+    'zb6':      { name: 'Phoenix ZB 6  (6.2 × 10.5)',               w: 6.2, h: 10.5, rot: 90, src: PHX,  note: 'Pitch 6.2 mm, text field 6.15 × 10.5 mm.' },
+    'zb8':      { name: 'Phoenix ZB 8  (8.2 × 10.5)',               w: 8.2, h: 10.5, rot: 0,  src: PHX,  note: 'Pitch 8.2 mm, text field 7 × 10.5 mm.' },
+    'zb10':     { name: 'Phoenix ZB 10  (10.2 × 10.5)',             w: 10.2, h: 10.5, rot: 0, src: PHX,  note: 'Pitch 10.2 mm, text field 10.15 × 10.5 mm.' },
+    'zbf5':     { name: 'Phoenix ZBF 5  (5.15 × 6.4, flat)',        w: 5.15, h: 6.4, rot: 0, src: PHX,  note: 'Flat strip, depth 1.6 mm, text field 5.15 × 5.15 mm.' },
+    'zbf6':     { name: 'Phoenix ZBF 6  (6.15 × 6.4, flat)',        w: 6.15, h: 6.4, rot: 0, src: PHX,  note: 'Flat strip, text field 5.15 × 6.15 mm.' },
+    'zbf8':     { name: 'Phoenix ZBF 8  (8.15 × 6.4, flat)',        w: 8.15, h: 6.4, rot: 0, src: PHX,  note: 'Flat strip, text field 5.15 × 8.15 mm.' },
+    'custom':   { name: 'Custom (use the fields below)' },
+  };
+  $('cardType').innerHTML = Object.entries(CARDS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+  function applyCard(key) {
+    const c = CARDS[key]; $('cardNote').textContent = c && c.src ? `${c.note} Source: ${c.src}. Frame size is estimated.` : 'Enter your own cell size below.';
+    if (!c || !c.w) return;
+    $('cellW').value = c.w; $('cellH').value = c.h;
+    $('textH').value = Math.min(3.5, +(c.h * 0.6).toFixed(1)); $('pad').value = 0.6;
+    $('rowLen').value = +(c.w * 10).toFixed(1);
+    setSeg('rotSeg', c.rot);
+  }
+  $('cardType').addEventListener('change', () => { applyCard($('cardType').value); relayout(); save(); });
   function cardShape(d, rowGap) {
     const cells = d.cells || [];
     if (!cells.length) return null;
@@ -481,6 +506,8 @@
     .forEach(id => $(id).addEventListener('input', () => { regen(); save(); }));
 
   load(); syncMode();
+  { const c = CARDS[$('cardType').value]; $('cardNote').textContent = c && c.src ? `${c.note} Source: ${c.src}. Frame size is estimated.` : 'Enter your own cell size below.'; }
+  ['cellW', 'cellH'].forEach(id => $(id).addEventListener('input', () => { $('cardType').value = 'custom'; $('cardNote').textContent = 'Enter your own cell size below.'; }));
   Object.keys(SEGS).forEach(id => setSeg(id, segVal(id)));
   relayout(); kickWave();
   window.DBApp = { state, settings, printer };
