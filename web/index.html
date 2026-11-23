@@ -214,6 +214,15 @@
       </div>
     </article>
 
+    <article class="card">
+      <h2>Firmware</h2>
+      <p class="hint">Downloads the current stock Marlin Ender-3 config from GitHub, patched for pen plotting (no heaters, M410 stop, servo/Z lift), as a zip with build steps. Compile and flash it with PlatformIO.</p>
+      <label class="field"><span>Board</span><select id="fwBoard"></select></label>
+      <div class="switches"><label class="switch"><input type="checkbox" id="fwServo"><i></i><span>Servo pen lift</span></label></div>
+      <button class="btn tonal" id="btnFirmware"><svg><use href="#i-download"/></svg><span>Download firmware zip</span></button>
+      <p class="hint" id="fwNote"></p>
+    </article>
+
     <article class="card console">
       <h2>Console</h2>
       <pre id="log" aria-live="polite"></pre>
@@ -230,6 +239,7 @@
 <div class="snack" id="snack" role="status"></div>
 
 <script src="font.js"></script>
+<script src="firmware.js"></script>
 <script src="layout.js"></script>
 <script src="gcode.js"></script>
 <script src="toolpath.js"></script>

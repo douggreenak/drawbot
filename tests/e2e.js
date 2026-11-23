@@ -255,6 +255,18 @@ async function runDataset(browser, ds, i) {
   check('Toolpath', 'top-right anchor with small offset leaves the bed (negative X/Y relative to zero is fine, bed edge is not)', /outside the bed|Path is safe/.test(await text(page, '#pathChipText') + await text(page, '#pathIssues')));
   await page.close();
 
+  // Firmware zip (fetches stock Marlin config from GitHub and patches it in the browser)
+  page = await setup(browser);
+  const fw = await page.evaluate(async () => {
+    try {
+      const r = await window.DBFirmware.build('CrealityV422', true);
+      const head = new Uint8Array(await r.blob.slice(0, 4).arrayBuffer());
+      return { sig: Array.from(head).join(','), size: r.blob.size, miss: r.report.filter(l => l.startsWith('MISS')).length, name: r.filename };
+    } catch (e) { return { err: e.message }; }
+  });
+  check('Firmware', 'builds a patched zip from the current Marlin config on GitHub', !fw.err && fw.sig === '80,75,3,4' && fw.size > 100000 && fw.miss === 0, JSON.stringify(fw));
+  await page.close();
+
   // Card type presets
   page = await setup(browser);
   await page.select('#cardType', 'zb5'); await sleep(200);

@@ -554,6 +554,19 @@
   ['cellW', 'cellH'].forEach(id => $(id).addEventListener('input', () => { $('cardType').value = 'custom'; $('cardNote').textContent = 'Enter your own cell size below.'; }));
   Object.keys(SEGS).forEach(id => setSeg(id, segVal(id)));
   relayout(); kickWave();
+  // ---------------------------------------------------------------- firmware download
+  $('fwBoard').innerHTML = Object.entries(window.DBFirmware.BOARDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('btnFirmware').onclick = async () => {
+    const btn = $('btnFirmware'); btn.disabled = true; $('fwNote').textContent = 'Fetching the latest config from GitHub…';
+    try {
+      const r = await window.DBFirmware.build($('fwBoard').value, $('fwServo').checked);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.filename; a.click();
+      const miss = r.report.filter(l => l.startsWith('MISS'));
+      $('fwNote').textContent = miss.length ? `Downloaded, but ${miss.length} setting(s) were not found in the current Marlin config: ${miss.join('; ')}. Check them by hand.` : `Downloaded ${r.filename}. All ${r.report.length} changes applied.`;
+    } catch (e) { $('fwNote').textContent = 'Could not download: ' + e.message; }
+    btn.disabled = false;
+  };
+
   window.DBApp = { state, settings, printer };
   log('sys', 'Ready. Connect over USB, home X Y, set the paper height, then draw.');
 })();

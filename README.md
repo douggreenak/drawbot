@@ -30,7 +30,10 @@ each dataset is checked for: all lines acknowledged, no buffer overflow, ink len
 Results with images of what the simulated pen drew: **[docs/TEST_RESULTS.md](docs/TEST_RESULTS.md)** (67/67 passing).
 This validates the software and the G-code protocol handling, not real hardware or Marlin's actual motion.
 
-## 1. Run the app
+## 0. Hosted
+The `web/` folder is a static site (see `vercel.json`); on Vercel it runs over https, which Web Serial needs, so there is no local server to start. The **Firmware** card downloads the current stock Marlin config from GitHub, patched in the browser.
+
+## 1. Run the app locally
 ```
 cd web && python3 -m http.server 8765      # then open http://localhost:8765
 ```
