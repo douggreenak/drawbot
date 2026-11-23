@@ -1,7 +1,7 @@
 # Drawbot — Ender 3 terminal-block label plotter
 
 ```
-web/        the app (Material 3 Expressive, Web Serial) — open in Chrome/Edge
+web/        the app (Material 3, light/dark theme, Web Serial) — open in Chrome/Edge
 firmware/   apply_drawbot.py — patches stock Marlin 2.1.x Ender-3 config for pen plotting
 ```
 
@@ -21,7 +21,7 @@ firmware/   apply_drawbot.py — patches stock Marlin 2.1.x Ender-3 config for p
 
 `cd tests && npm install && npm test` drives the real UI in headless Chrome against a **simulated Marlin** (`web/mock-serial.js`, also usable as a demo: open `index.html?mock`).
 The simulator models Marlin's 128-byte RX buffer, `ok` replies, positions and pen state, and records every pen-down move.
-Five label datasets (numbered strip, symbols + two-line labels, horizontal text, servo lift with 40 labels, single-label edge case) plus pause/resume, stop, jog and safety-dialog scenarios run end-to-end;
+Five label datasets (numbered 5 mm marker strips, symbols + two-line labels, horizontal text, servo lift with 40 labels, single-label edge case) plus pause/resume, stop, jog and safety-dialog scenarios run end-to-end;
 each dataset is checked for: all lines acknowledged, no buffer overflow, ink length and bounding box matching the design (≤0.05 mm), one pen-down per stroke, pen up and parked at the end.
 Results with images of what the simulated pen drew: **[docs/TEST_RESULTS.md](docs/TEST_RESULTS.md)** (67/67 passing).
 This validates the software and the G-code protocol handling, not real hardware or Marlin's actual motion.
@@ -43,7 +43,7 @@ CH340 boards on older macOS/Windows may need the CH340 driver.
 
 It turns the heaters/thermal protection off (no hotend), disables the Z-min software limit, raises Z speed
 (5→20 mm/s), enables `EMERGENCY_PARSER` (instant Stop via `M410`), and enables servo 0 on the BLTouch header.
-The patch script was tested against the stock V1 and V422 configs; **the firmware has not been compiled or run on hardware** — expect to check the build.
+The patch script was re-checked on 2026-11-22 against the current `bugfix-2.1.x` stock V1 and V422 configs (every setting found and patched); **the firmware has not been compiled or run on hardware** — expect to check the build.
 On 4.2.x boards, if compile complains about a missing sensor with `TEMP_SENSOR_0 0`, set it to `998` (dummy).
 
 ## 3. Pen mount & workflow
@@ -55,6 +55,6 @@ On 4.2.x boards, if compile complains about a missing sensor with `TEMP_SENSOR_0
 
 ## Label syntax
 One label per line · `L1|24V` = two text lines · `PE@8` = 8 mm wide cell · **Add numbered** generates `X1:1…`.
-Font is a built-in single-stroke font (A–Z, 0–9, `- + = . , : / ( ) % & # @ Ω µ ° ±`…). Text defaults to vertical (reads upward) so it fits narrow 5–6 mm terminals.
+Font is a built-in single-stroke font (A–Z, 0–9, `- + = . , : / ( ) % & # @ Ω µ ° ±`…). Defaults match 5 mm marker strips (10 per row, horizontal text); switch to Up/Down for narrower cells. The **Marker cards** panel previews the finished strips.
 
 Stop sends `M410` and lifts the pen. Settings persist in the browser. **Not tested against a real printer** — try a dry run with the pen up first.
