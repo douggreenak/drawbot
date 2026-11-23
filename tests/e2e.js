@@ -23,7 +23,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const DATASETS = [
   { id: 'numbered', title: 'Numbered marker strips, 5 mm cells',
     labels: Array.from({ length: 24 }, (_, i) => String(i + 1)).join('\n'),
-    num: { cellW: 5, cellH: 5, textH: 3, rowLen: 50, rowGap: 8 }, seg: { rotSeg: '0', modeSeg: 'z' } },
+    num: { textH: 3, rowGap: 8 }, seg: { rotSeg: '0', modeSeg: 'z' } },
   { id: 'symbols', title: 'Mixed symbols and two-line labels',
     labels: 'L1|24V\nL2|24V\n0V\nPE@8\n10kΩ\n4.7µF\n±5%\n85°C\nA-B/C\n(IN)+\n#7 &8', num: { cellW: 9, cellH: 14, textH: 3.5 }, seg: { rotSeg: '90', modeSeg: 'z' } },
   { id: 'horizontal', title: 'Horizontal text in wide cells',
@@ -102,7 +102,7 @@ async function runDataset(browser, ds, i) {
   await connect(page);
   check(G, 'connected and detected Marlin', /Marlin/.test(await text(page, '#statusText')), `("${await text(page, '#statusText')}")`);
   if (i === 0) await shot(page, '02-connected');
-  await page.click('#btnHome');
+  await page.click('#btnZero');
   if (ds.seg.modeSeg === 'z') await page.click('#btnSetZ');
   await page.waitForFunction(() => window.DBApp.printer.inflight.length === 0 && window.DBApp.printer.queue.length === 0);
   const base = await page.evaluate(() => ({ cmds: window.__mock.commands, downs: window.__mock.penDowns }));
@@ -124,7 +124,7 @@ async function runDataset(browser, ds, i) {
   check(G, 'one pen-down per stroke', m.downs - base.downs === expect.strokes, `(${m.downs - base.downs}/${expect.strokes})`);
   const err = Math.max(Math.abs(bb.minx - (expect.minx + s.ox)), Math.abs(bb.maxx - (expect.maxx + s.ox)), Math.abs(bb.miny - (expect.miny + s.oy)), Math.abs(bb.maxy - (expect.maxy + s.oy)));
   check(G, 'drawn bounding box lands at the origin offset', err < 0.05, `(X ${bb.minx.toFixed(1)}–${bb.maxx.toFixed(1)}, Y ${bb.miny.toFixed(1)}–${bb.maxy.toFixed(1)} mm; max error ${err.toFixed(3)} mm)`);
-  check(G, 'pen lifted and parked at the end', !m.penDown && m.pos.x === 0 && m.pos.y === s.bedH, `(pos ${m.pos.x},${m.pos.y}, pen ${m.penDown ? 'DOWN' : 'up'})`);
+  check(G, 'pen lifted and parked at the zero point', !m.penDown && m.pos.x === 0 && m.pos.y === 0, `(pos ${m.pos.x},${m.pos.y}, pen ${m.penDown ? 'DOWN' : 'up'})`);
   check(G, 'no JS errors in the page', page.errors.length === 0, page.errors.join('; '));
   await renderExecuted(page, path.join(SHOTS, `run-${ds.id}.png`), ds.title);
   if (ds.id === 'numbered') await shot(page, '04-finished');
@@ -150,7 +150,7 @@ async function runDataset(browser, ds, i) {
   console.log('\n== Pause and resume');
   let G = 'Pause / resume';
   page = await setup(browser, { query: '?mock&delay=8', ds: DATASETS[0] });
-  await connect(page); await page.click('#btnHome'); await page.click('#btnSetZ');
+  await connect(page); await page.click('#btnZero'); await page.click('#btnSetZ');
   await page.waitForFunction(() => window.DBApp.printer.inflight.length === 0);
   const exp = await page.evaluate(() => window.DBApp.state.design.strokes.reduce((a, s) => a + s.slice(1).reduce((q, p, k) => q + Math.hypot(p[0] - s[k][0], p[1] - s[k][1]), 0), 0));
   await page.click('#btnStart'); await waitPct(page, 35); await page.click('#btnPause');
@@ -169,7 +169,7 @@ async function runDataset(browser, ds, i) {
   console.log('\n== Stop');
   G = 'Stop';
   page = await setup(browser, { query: '?mock&delay=8', ds: DATASETS[0] });
-  await connect(page); await page.click('#btnHome'); await page.click('#btnSetZ');
+  await connect(page); await page.click('#btnZero'); await page.click('#btnSetZ');
   await page.waitForFunction(() => window.DBApp.printer.inflight.length === 0);
   await page.click('#btnStart'); await waitPct(page, 25); await page.click('#btnStop');
   await page.waitForFunction(() => document.getElementById('progText').textContent === 'Ready', { timeout: 10000 });
@@ -187,7 +187,7 @@ async function runDataset(browser, ds, i) {
   console.log('\n== Manual controls');
   G = 'Manual controls';
   page = await setup(browser);
-  await connect(page); await page.click('#btnHome');
+  await connect(page); await page.click('#btnZero');
   await page.click('[data-jog="X"][data-dir="1"]'); await page.click('[data-jog="Y"][data-dir="1"]'); await page.click('[data-jog="Y"][data-dir="1"]');
   await page.click('#stepSeg button[data-v="1"]'); await page.click('[data-jog="X"][data-dir="-1"]');
   await page.waitForFunction(() => window.DBApp.printer.inflight.length === 0 && !window.DBApp.printer.queue.length);
@@ -217,7 +217,7 @@ async function runDataset(browser, ds, i) {
   const before = await page.evaluate(() => window.__mock.commands);
   await page.click('#btnStart'); await page.waitForSelector('dialog[open]');
   const dtxt = await text(page, '#dlgBody');
-  check(G, 'warns about off-bed drawing, unhomed axes and unset Z', /past the bed/.test(dtxt) && /homed/.test(dtxt) && /Z = 0/.test(dtxt));
+  check(G, 'warns about off-bed drawing and unset zero', /past the bed/.test(dtxt) && /Zero/.test(dtxt) && /Z = 0/.test(dtxt));
   await shot(page, '07-safety-dialog');
   await page.click('#dlgNo'); await sleep(300);
   check(G, 'Cancel sends nothing', (await page.evaluate(() => window.__mock.commands)) === before);
@@ -226,6 +226,18 @@ async function runDataset(browser, ds, i) {
 
   // 6. Dark theme + mobile
   page = await setup(browser, { dark: false, ds: DATASETS[1] }); await shot(page, '09-light-theme'); await page.close();
+  // Zero point + anchor corner
+  page = await setup(browser, { ds: { labels: '1\n2\n3', num: { cellW: 5, cellH: 5, ox: 10, oy: 10 }, seg: { rotSeg: '0' } } });
+  await connect(page);
+  await page.click('#btnZero'); await page.waitForFunction(() => window.DBApp.printer.inflight.length === 0 && !window.DBApp.printer.queue.length);
+  check('Zero point', 'Set 0 XYZ sends G92 and is not G28', await page.evaluate(() => window.__mock.log.some(l => l === 'G92 X0 Y0 Z0') && !window.__mock.log.some(l => l.startsWith('G28'))));
+  const gcBL = await page.evaluate(() => window.DBApp.state.gc.lines.filter(l => /^G1 X/.test(l)).slice(0, 1)[0]);
+  await page.click('#anchorSeg button[data-v="tr"]');
+  const gcTR = await page.evaluate(() => window.DBApp.state.gc.lines.filter(l => /^G1 X/.test(l)).slice(0, 1)[0]);
+  const negs = await page.evaluate(() => window.DBApp.state.gc.lines.some(l => /X-\d/.test(l) || /Y-\d/.test(l)));
+  check('Zero point', 'top-right anchor shifts the drawing so that corner sits at the offset', gcBL !== gcTR && negs, `${gcBL} -> ${gcTR}`);
+  await page.close();
+
   // Card type presets
   page = await setup(browser);
   await page.select('#cardType', 'zb5'); await sleep(200);

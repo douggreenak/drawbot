@@ -134,9 +134,15 @@
     <article class="card">
       <h2>Move</h2>
       <div class="row">
-        <button class="btn tonal" id="btnHome"><svg><use href="#i-home"/></svg><span>Home X Y</span></button>
+        <button class="btn tonal" id="btnZero"><svg><use href="#i-home"/></svg><span>Set 0 XYZ</span></button>
+        <button class="btn text" id="btnGoZero"><span>Go to 0</span></button>
         <button class="btn text" id="btnBounds"><svg><use href="#i-box"/></svg><span>Trace outline</span></button>
         <button class="btn text" id="btnOff"><span>Motors off</span></button>
+      </div>
+      <p class="hint">Motors off, move the pen by hand (or jog), then <b>Set 0 XYZ</b> makes this spot the zero point.</p>
+      <div class="label-s">Zero point is the card's</div>
+      <div class="seg small" id="anchorSeg" role="radiogroup">
+        <button type="button" data-v="bl" class="on">Bottom-left</button><button type="button" data-v="br">Bottom-right</button><button type="button" data-v="tl">Top-left</button><button type="button" data-v="tr">Top-right</button>
       </div>
       <div class="seg small" id="stepSeg">
         <button type="button" data-v="0.1">0.1</button><button type="button" data-v="1">1</button><button type="button" data-v="10" class="on">10</button><button type="button" data-v="50">50</button>
@@ -188,8 +194,8 @@
       <div class="fields">
         <label class="field"><span>Draw speed <small>mm/min</small></span><input id="drawFeed" type="number" step="100" value="1800"></label>
         <label class="field"><span>Travel speed <small>mm/min</small></span><input id="travelFeed" type="number" step="500" value="6000"></label>
-        <label class="field"><span>Origin X <small>mm</small></span><input id="ox" type="number" step="1" value="20"></label>
-        <label class="field"><span>Origin Y <small>mm</small></span><input id="oy" type="number" step="1" value="20"></label>
+        <label class="field"><span>Card offset X <small>mm</small></span><input id="ox" type="number" step="1" value="20"></label>
+        <label class="field"><span>Card offset Y <small>mm</small></span><input id="oy" type="number" step="1" value="20"></label>
         <label class="field"><span>Bed X <small>mm</small></span><input id="bedW" type="number" value="220"></label>
         <label class="field"><span>Bed Y <small>mm</small></span><input id="bedH" type="number" value="220"></label>
         <label class="field"><span>Baud rate</span>

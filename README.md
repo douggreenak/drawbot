@@ -55,7 +55,7 @@ On 4.2.x boards, if compile complains about a missing sensor with `TEMP_SENSOR_0
   Jog Z down until the tip touches the paper → **Set paper height** (`G92 Z0`). Pen-up/down moves Z by the values in the Pen card.
   Slower per stroke, so servo is better for lots of labels.
 - **Servo lift:** hobby servo signal on the BLTouch header (on the 1.1.x board that is pin 27), 5 V and GND. Tune up/down angles and press the Pen up/down buttons.
-- Tape the label stock down. **Home X Y**, **Trace outline** to check placement (or drag the drawing in the preview), then **Draw labels**.
+- Tape the label stock down. move the pen to the card's corner by hand (**Motors off**) or with the jog pad, pick which card corner that is, press **Set 0 XYZ**, then **Trace outline** to check placement (or drag the drawing in the preview), then **Draw labels**.
 
 ## Label syntax
 One label per line · `L1|24V` = two text lines · `PE@8` = 8 mm wide cell · **Add numbered** generates `X1:1…`.

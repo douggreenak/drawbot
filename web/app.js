@@ -10,7 +10,7 @@
   const NUM_IDS = ['cellW', 'cellH', 'textH', 'pad', 'rowLen', 'rowGap', 'zUp', 'zDown', 'zFeed', 'svUp', 'svDown', 'svDelay',
                    'drawFeed', 'travelFeed', 'ox', 'oy', 'bedW', 'bedH'];
   const CHECK_IDS = ['borders', 'shrink', 'showTravel'];
-  const SEGS = { rotSeg: '90', modeSeg: 'z', stepSeg: '10' };
+  const SEGS = { rotSeg: '90', modeSeg: 'z', stepSeg: '10', anchorSeg: 'bl' };
   const state = { design: null, gc: null, job: null, homed: false, zSet: false, doneStrokes: 0 };
 
   const num = (id, d) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : d; };
@@ -23,7 +23,10 @@
       zUp: num('zUp', 3), zDown: num('zDown', 0), zFeed: Math.max(60, num('zFeed', 900)),
       svUp: num('svUp', 90), svDown: num('svDown', 40), svDelay: num('svDelay', 200),
       drawFeed: Math.max(60, num('drawFeed', 1800)), travelFeed: Math.max(60, num('travelFeed', 6000)),
-      ox: num('ox', 20), oy: num('oy', 20), bedW, bedH, parkX: 0, parkY: bedH,
+      // card offset from the zero point; the chosen card corner sits at (ox, oy) from zero
+      ox: num('ox', 20) - (/r/.test(segVal('anchorSeg')) && state.design ? state.design.width : 0),
+      oy: num('oy', 20) - (/t/.test(segVal('anchorSeg')) && state.design ? state.design.height : 0),
+      bedW, bedH, parkX: 0, parkY: 0,
     };
   }
   function layoutOpts() {
@@ -60,7 +63,7 @@
     const b = e.target.closest('button'); if (!b) return;
     setSeg(id, b.dataset.v);
     if (id === 'modeSeg') syncMode();
-    if (id === 'rotSeg') relayout(); else regen();
+    if (id === 'rotSeg') relayout(); else regen();   // anchorSeg / stepSeg / modeSeg
     save();
   }));
   function syncMode() {
@@ -415,7 +418,8 @@
   const penUpCmds = () => GC.penUp(settings());
   const liftCmds = () => segVal('modeSeg') === 'servo' ? penUpCmds() : ['G91', 'G0 Z3 F600', 'G90'];
 
-  $('btnHome').onclick = () => { if (!need()) return; send([...liftCmds(), 'G28 X Y']); state.homed = true; };
+  $('btnZero').onclick = () => { if (!need()) return; send(['G92 X0 Y0 Z0', ...liftCmds()]); state.homed = true; state.zSet = true; toast('This position is now 0 X Y Z.'); };
+  $('btnGoZero').onclick = () => { if (!need()) return; send([...liftCmds(), 'G90', `G0 X0 Y0 F${settings().travelFeed}`]); };
   $('btnOff').onclick = () => { if (!need()) return; send(['M84']); state.homed = false; };
   $('btnSetZ').onclick = () => { if (!need()) return; send(['G92 Z0']); state.zSet = true; toast('Z = 0 is now the paper surface.'); };
   $('btnPenUp').onclick = () => { if (!need()) return; send(['G90', ...penUpCmds()]); };
@@ -457,7 +461,7 @@
     if (!state.design.strokes.length) { toast('Nothing to draw — add some labels.'); return; }
     const warn = [];
     if (state.outOfBed) warn.push('• The drawing extends past the bed.');
-    if (!state.homed) warn.push('• X/Y have not been homed this session.');
+    if (!state.homed) warn.push('• Zero (Set 0 XYZ) has not been set this session.');
     if (settings().penMode === 'z' && !state.zSet) warn.push('• Paper height (Z = 0) has not been set.');
     if (warn.length && !(await confirmDlg('Check before drawing', warn.join('\n') + '\n\nThe pen may crash or draw in the wrong place.', 'Draw anyway'))) return;
     const gc = state.gc;

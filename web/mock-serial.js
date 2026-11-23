@@ -32,7 +32,7 @@
     } else if (cmd === 'G28') { if (w.length === 1 || w.includes('X')) m.pos.x = 0; if (w.length === 1 || w.includes('Y')) m.pos.y = 0; }
     else if (cmd === 'G90') m.rel = false;
     else if (cmd === 'G91') m.rel = true;
-    else if (cmd === 'G92') { const z = val('Z'); if (z !== undefined) { m.pos.z = z; setPen(z <= 0.01); } }
+    else if (cmd === 'G92') { const x = val('X'), y = val('Y'), z = val('Z'); if (x !== undefined) m.pos.x = x; if (y !== undefined) m.pos.y = y; if (z !== undefined) { m.pos.z = z; setPen(z <= 0.01); } }
     else if (cmd === 'M280') { m.servoAngle = val('S'); setPen(m.servoAngle <= 60); }
     else if (cmd === 'M410') { queue.length = 0; m.occupancy = 0; m.stopped++; }
     else if (cmd === 'M115') { reply('FIRMWARE_NAME:Marlin 2.1.2.5 (Drawbot mock) SOURCE_CODE_URL:github.com/MarlinFirmware/Marlin MACHINE_TYPE:Drawbot'); }
