@@ -70,17 +70,17 @@
     <article class="card">
       <h2>Layout</h2>
       <div class="fields">
-        <label class="field"><span>Cell width <small>mm</small></span><input id="cellW" type="number" step="0.1" value="6"></label>
-        <label class="field"><span>Cell height <small>mm</small></span><input id="cellH" type="number" step="0.1" value="12"></label>
+        <label class="field"><span>Cell width <small>mm</small></span><input id="cellW" type="number" step="0.1" value="5"></label>
+        <label class="field"><span>Cell height <small>mm</small></span><input id="cellH" type="number" step="0.1" value="10"></label>
         <label class="field"><span>Text height <small>mm</small></span><input id="textH" type="number" step="0.1" value="3.5"></label>
         <label class="field"><span>Padding <small>mm</small></span><input id="pad" type="number" step="0.1" value="0.8"></label>
-        <label class="field"><span>Row length <small>mm</small></span><input id="rowLen" type="number" step="1" value="180"></label>
+        <label class="field"><span>Row length <small>mm</small></span><input id="rowLen" type="number" step="1" value="50"></label>
         <label class="field"><span>Row gap <small>mm</small></span><input id="rowGap" type="number" step="0.5" value="4"></label>
       </div>
       <div class="label-s">Text direction</div>
       <div class="seg" id="rotSeg" role="radiogroup">
-        <button type="button" data-v="0" role="radio">Horizontal</button>
-        <button type="button" data-v="90" role="radio" class="on">Up ↑</button>
+        <button type="button" data-v="0" role="radio" class="on">Horizontal</button>
+        <button type="button" data-v="90" role="radio">Up ↑</button>
         <button type="button" data-v="-90" role="radio">Down ↓</button>
       </div>
       <div class="switches">
@@ -107,8 +107,8 @@
     </article>
 
     <article class="card tb">
-      <h2>Terminal blocks</h2>
-      <p class="hint">How the labels will look on a DIN rail.</p>
+      <h2>Marker cards</h2>
+      <p class="hint">How the finished marker strips will look.</p>
       <div class="tb-wrap"><canvas id="tbView"></canvas></div>
     </article>
 

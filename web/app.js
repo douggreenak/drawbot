@@ -185,7 +185,7 @@
     if (!saved) setTheme(e.matches ? 'dark' : 'light', false);
   });
 
-  // ---------------------------------------------------------------- terminal block visualisation
+  // ---------------------------------------------------------------- marker card visualisation
   const tv = $('tbView'), tx = tv.getContext('2d');
   function drawBlocks() {
     const o = layoutOpts(), cells = window.DBLayout.parseLabels($('labels').value, o.cellW);
@@ -200,57 +200,39 @@
       row.push(c); x += c.w;
     }
     if (row.length) { rows.push(row); maxLen = Math.max(maxLen, x); }
-    const k = Math.min(avail / Math.max(maxLen, 1), 9);          // px per mm
-    const blockH = Math.max(o.cellH * k, 70), railH = 16, rowH = blockH + railH * 2 + 28;
+    const k = Math.min((avail - 40) / Math.max(maxLen, 1), 14);   // px per mm
+    const cellH = Math.max(o.cellH * k, 44), railH = 14, rowH = cellH + railH * 2 + 14;
     const H = Math.max(rows.length, 1) * rowH + 12;
     tv.style.height = H + 'px'; tv.width = W * dpr; tv.height = H * dpr;
     tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.clearRect(0, 0, W, H);
     if (!rows.length) { tx.fillStyle = css('--on-surface-variant'); tx.font = '500 14px Roboto Flex, sans-serif'; tx.textAlign = 'center'; tx.fillText('Add some labels to see them here', W / 2, H / 2); return; }
     const dark = document.documentElement.dataset.theme === 'dark';
-    const body = dark ? '#3a3f47' : '#c9ced6', bodyEdge = dark ? '#5a616c' : '#8f97a3';
-    const marker = '#f4f1e8', ink = '#14171c';
-    const rail = dark ? '#8a929e' : '#a9b0ba', railEdge = dark ? '#5c636d' : '#7b838f';
+    const frame = dark ? '#dfe3e8' : '#f6f7f9', edge = dark ? '#9aa1ab' : '#b9bfc8', cellFill = '#ffffff', ink = '#14171c';
     rows.forEach((r, ri) => {
-      const total = r.reduce((s, c) => s + c.w, 0) * k, x0 = (W - total) / 2, y0 = 8 + ri * rowH + 14 + railH;
-      // DIN rail behind the blocks
-      const ry = y0 + blockH / 2 - railH / 2;
-      tx.fillStyle = rail; tx.strokeStyle = railEdge; tx.lineWidth = 1;
-      tx.beginPath(); tx.roundRect(x0 - 14, ry, total + 28, railH, 3); tx.fill(); tx.stroke();
+      const total = r.reduce((s, c) => s + c.w, 0) * k, x0 = (W - total) / 2, y0 = 6 + ri * rowH + railH;
+      // white carrier frame (ladder rails above and below the strip)
+      tx.fillStyle = frame; tx.strokeStyle = edge; tx.lineWidth = 1;
+      tx.beginPath(); tx.roundRect(x0 - 16, y0 - railH, total + 32, cellH + railH * 2, 3); tx.fill(); tx.stroke();
       tx.fillStyle = css('--sc-highest');
-      for (let sx = x0 - 6; sx < x0 + total + 6; sx += 26) { tx.beginPath(); tx.roundRect(sx, ry + 4, 14, railH - 8, 4); tx.fill(); }
+      tx.beginPath(); tx.roundRect(x0 - 4, y0 - 3, total + 8, cellH + 6, 2); tx.fill(); tx.stroke();
       let x = x0;
       for (const c of r) {
-        const w = c.w * k - 1.5, earth = c.lines.join('').toUpperCase() === 'PE';
-        // block body
-        tx.fillStyle = earth ? '#c6b829' : body; tx.strokeStyle = bodyEdge; tx.lineWidth = 1;
-        tx.beginPath(); tx.roundRect(x, y0, w, blockH, 5); tx.fill(); tx.stroke();
-        if (earth) { tx.fillStyle = '#2f8f4e'; tx.fillRect(x + 1, y0 + blockH * .55, w - 2, blockH * .45 - 1); }
-        // screw head + wire entry
-        const sr = Math.min(w * .3, 11), sy = y0 + sr + 7;
-        tx.fillStyle = dark ? '#20242a' : '#7c8591'; tx.beginPath(); tx.arc(x + w / 2, sy, sr, 0, 7); tx.fill();
-        tx.strokeStyle = dark ? '#aeb5c0' : '#eef0f3'; tx.lineWidth = 1.6; tx.beginPath(); tx.moveTo(x + w / 2 - sr * .6, sy); tx.lineTo(x + w / 2 + sr * .6, sy); tx.stroke();
-        tx.fillStyle = dark ? '#20242a' : '#7c8591'; tx.beginPath(); tx.roundRect(x + w * .25, y0 + blockH - 9, w * .5, 5, 2); tx.fill();
-        // marker strip with the label
-        const my = y0 + sr * 2 + 16, mh = blockH - (sr * 2 + 16) - 16;
-        if (mh > 14) {
-          tx.fillStyle = marker; tx.strokeStyle = bodyEdge; tx.beginPath(); tx.roundRect(x + 2, my, w - 4, mh, 3); tx.fill(); tx.stroke();
-          tx.save(); tx.beginPath(); tx.rect(x + 2, my, w - 4, mh); tx.clip();
-          tx.translate(x + w / 2, my + mh / 2); if (o.rot) tx.rotate(o.rot * Math.PI / 180 * -1);
-          const L = (o.rot ? mh : w - 4) - 6, T = (o.rot ? w - 4 : mh) - 4, n = c.lines.length;
-          let fs = Math.min(T / (n * 1.15), o.textH * k * 1.2, 30);
-          tx.fillStyle = ink; tx.textAlign = 'center'; tx.textBaseline = 'middle';
-          const font = s => `700 ${s}px "Roboto Mono", ui-monospace, monospace`;
-          tx.font = font(fs);
-          const widest = Math.max(0, ...c.lines.map(t => tx.measureText(t).width));
-          if (widest > L) { fs *= L / widest; tx.font = font(fs); }
-          c.lines.forEach((t, i) => tx.fillText(t, 0, (i - (n - 1) / 2) * fs * 1.15));
-          tx.restore();
-        }
-        x += c.w * k;
+        const w = c.w * k;
+        tx.fillStyle = cellFill; tx.strokeStyle = edge; tx.lineWidth = 1;
+        tx.beginPath(); tx.rect(x + .5, y0 + .5, w - 1, cellH - 1); tx.fill(); tx.stroke();
+        tx.save(); tx.beginPath(); tx.rect(x + 1, y0 + 1, w - 2, cellH - 2); tx.clip();
+        tx.translate(x + w / 2, y0 + cellH / 2); if (o.rot) tx.rotate(-o.rot * Math.PI / 180);
+        const L = (o.rot ? cellH : w) - 6, T = (o.rot ? w : cellH) - 6, n = c.lines.length;
+        let fs = Math.min(T / (n * 1.2), o.textH * k * 1.3, 40);
+        tx.fillStyle = ink; tx.textAlign = 'center'; tx.textBaseline = 'middle';
+        const font = z => `500 ${z}px Arial, Helvetica, sans-serif`;
+        tx.font = font(fs);
+        const widest = Math.max(0, ...c.lines.map(t => tx.measureText(t).width));
+        if (widest > L) { fs *= L / widest; tx.font = font(fs); }
+        c.lines.forEach((t, i) => tx.fillText(t, 0, (i - (n - 1) / 2) * fs * 1.2));
+        tx.restore();
+        x += w;
       }
-      // end stops
-      tx.fillStyle = dark ? '#6b7380' : '#5d6672';
-      [x0 - 8, x0 + total + 2].forEach(ex => { tx.beginPath(); tx.roundRect(ex, y0 + 4, 6, blockH - 8, 2); tx.fill(); });
     });
   }
 
