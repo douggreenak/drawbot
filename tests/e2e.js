@@ -23,7 +23,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const DATASETS = [
   { id: 'numbered', title: 'Numbered marker strips, 5 mm cells',
     labels: Array.from({ length: 24 }, (_, i) => String(i + 1)).join('\n'),
-    num: { cellW: 5, cellH: 10, textH: 3.5, rowLen: 50 }, seg: { rotSeg: '0', modeSeg: 'z' } },
+    num: { cellW: 5, cellH: 8, textH: 3.5, rowLen: 50, rowGap: 8 }, seg: { rotSeg: '0', modeSeg: 'z' } },
   { id: 'symbols', title: 'Mixed symbols and two-line labels',
     labels: 'L1|24V\nL2|24V\n0V\nPE@8\n10kΩ\n4.7µF\n±5%\n85°C\nA-B/C\n(IN)+\n#7 &8', num: { cellW: 9, cellH: 14, textH: 3.5 }, seg: { rotSeg: '90', modeSeg: 'z' } },
   { id: 'horizontal', title: 'Horizontal text in wide cells',

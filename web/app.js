@@ -123,6 +123,23 @@
     draw(); drawBlocks();
   }
 
+  // ---------------------------------------------------------------- card geometry
+  // Measured from the physical marker cards (see README): white ladder frame, each strip hangs from the
+  // crossbar above it, a slot below it, and a rail down each side.  All values in mm.
+  const CARD = { rail: 5.5, slot: 4, clear: 0.3 };
+  function cardShape(d, rowGap) {
+    const cells = d.cells || [];
+    if (!cells.length) return null;
+    const bar = Math.max(1, rowGap - CARD.slot);
+    const maxX = Math.max(...cells.map(c => c.x + c.w)), minY = Math.min(...cells.map(c => c.y)), maxY = Math.max(...cells.map(c => c.y + c.h));
+    const rowsY = [...new Set(cells.map(c => c.y))];
+    return {
+      frame: { x: -CARD.rail, y: minY - CARD.slot - bar, w: maxX + 2 * CARD.rail, h: maxY - minY + CARD.slot + 2 * bar },
+      windows: rowsY.map(y => { const h = cells.find(c => c.y === y).h; return { x: -CARD.clear, y: y - CARD.slot, w: maxX + 2 * CARD.clear, h: h + CARD.slot }; }),
+      cells,
+    };
+  }
+
   // ---------------------------------------------------------------- preview
   const cv = $('preview'), cx = cv.getContext('2d');
   let geo = { m: 14, scale: 1 };
@@ -146,13 +163,19 @@
     for (let y = 0; y <= s.bedH; y += 10) { const a = P(0, y), b = P(s.bedW, y); cx.globalAlpha = y % 50 ? .3 : .8; cx.beginPath(); cx.moveTo(a[0], a[1]); cx.lineTo(b[0], b[1]); cx.stroke(); }
     cx.globalAlpha = 1;
 
-    // the physical cards: white cells on a faint footprint
+    // the physical card: ladder frame, slots and white marker cells
     const p0 = P(s.ox, s.oy), p1 = P(s.ox + d.width, s.oy + d.height);
-    cx.fillStyle = css('--primary-container'); cx.globalAlpha = .35;
-    cx.beginPath(); cx.roundRect(p0[0] - 4, p1[1] - 4, p1[0] - p0[0] + 8, p0[1] - p1[1] + 8, 6); cx.fill(); cx.globalAlpha = 1;
-    cx.fillStyle = '#ffffff'; cx.strokeStyle = '#b9bfc8'; cx.lineWidth = 1;
-    for (const c of d.cells || []) { const a = P(s.ox + c.x, s.oy + c.y), b = P(s.ox + c.x + c.w, s.oy + c.y + c.h); cx.fillRect(a[0], b[1], b[0] - a[0], a[1] - b[1]); cx.strokeRect(a[0] + .5, b[1] + .5, b[0] - a[0] - 1, a[1] - b[1] - 1); }
-    if (state.outOfBed) { cx.strokeStyle = css('--error'); cx.lineWidth = 2; cx.setLineDash([6, 4]); cx.strokeRect(p0[0] - 4, p1[1] - 4, p1[0] - p0[0] + 8, p0[1] - p1[1] + 8); cx.setLineDash([]); }
+    const shape = cardShape(d, num('rowGap', 4));
+    if (shape) {
+      const R = (r) => { const a1 = P(s.ox + r.x, s.oy + r.y), b1 = P(s.ox + r.x + r.w, s.oy + r.y + r.h); return [a1[0], b1[1], b1[0] - a1[0], a1[1] - b1[1]]; };
+      cx.fillStyle = '#f1f3f6'; cx.strokeStyle = '#b9bfc8'; cx.lineWidth = 1;
+      let r = R(shape.frame); cx.beginPath(); cx.roundRect(r[0], r[1], r[2], r[3], 3); cx.fill(); cx.stroke();
+      cx.fillStyle = css('--sc-low');
+      for (const w of shape.windows) { r = R(w); cx.fillRect(r[0], r[1], r[2], r[3]); cx.strokeRect(r[0] + .5, r[1] + .5, r[2] - 1, r[3] - 1); }
+      cx.fillStyle = '#ffffff';
+      for (const c of shape.cells) { r = R(c); cx.fillRect(r[0], r[1], r[2], r[3]); cx.strokeRect(r[0] + .5, r[1] + .5, r[2] - 1, r[3] - 1); }
+    }
+    if (state.outOfBed) { cx.strokeStyle = css('--error'); cx.lineWidth = 2; cx.setLineDash([6, 4]); cx.strokeRect(p0[0] - 2, p1[1] - 2, p1[0] - p0[0] + 4, p0[1] - p1[1] + 4); cx.setLineDash([]); }
 
     cx.lineCap = 'round'; cx.lineJoin = 'round';
     const INK = '#0b3d91', DONE = '#00696b';
@@ -258,51 +281,43 @@
   // ---------------------------------------------------------------- marker card visualisation
   const tv = $('tbView'), tx = tv.getContext('2d');
   function drawBlocks() {
-    const o = layoutOpts(), cells = window.DBLayout.parseLabels($('labels').value, o.cellW);
+    const o = layoutOpts(), d = state.design, shape = d && cardShape(d, num('rowGap', 4));
     const dpr = window.devicePixelRatio || 1, W = tv.clientWidth;
     if (!W) return;
-    const pad = 20, avail = W - 2 * pad;
-    // wrap cells into rows (same rule as the plot layout, fitted to the card width)
-    const rows = []; let row = [], x = 0, maxLen = 0;
-    const cap = Math.max(o.rowLen, 1);
-    for (const c of cells) {
-      if (row.length && x + c.w > cap + 1e-6) { rows.push(row); maxLen = Math.max(maxLen, x); row = []; x = 0; }
-      row.push(c); x += c.w;
-    }
-    if (row.length) { rows.push(row); maxLen = Math.max(maxLen, x); }
-    const k = Math.min((avail - 40) / Math.max(maxLen, 1), 14);   // px per mm
-    const cellH = Math.max(o.cellH * k, 44), railH = 14, rowH = cellH + railH * 2 + 14;
-    const H = Math.max(rows.length, 1) * rowH + 12;
+    if (!shape) { tv.style.height = '90px'; tv.width = W * dpr; tv.height = 90 * dpr; tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.fillStyle = css('--on-surface-variant'); tx.font = '500 14px Roboto Flex, sans-serif'; tx.textAlign = 'center'; tx.fillText('Add some labels to see them here', W / 2, 50); return; }
+    const f = shape.frame, pad = 16, k = Math.min((W - 2 * pad) / f.w, 14);
+    const H = Math.ceil(f.h * k + 2 * pad);
     tv.style.height = H + 'px'; tv.width = W * dpr; tv.height = H * dpr;
     tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.clearRect(0, 0, W, H);
-    if (!rows.length) { tx.fillStyle = css('--on-surface-variant'); tx.font = '500 14px Roboto Flex, sans-serif'; tx.textAlign = 'center'; tx.fillText('Add some labels to see them here', W / 2, H / 2); return; }
+    const ox = (W - f.w * k) / 2 - f.x * k, oy = pad + (f.y + f.h) * k;     // design (x,y up) -> px
+    const R = r => [ox + r.x * k, oy - (r.y + r.h) * k, r.w * k, r.h * k];
     const dark = document.documentElement.dataset.theme === 'dark';
-    const frame = dark ? '#dfe3e8' : '#f6f7f9', edge = dark ? '#9aa1ab' : '#b9bfc8', cellFill = '#ffffff', ink = '#14171c';
-    rows.forEach((r, ri) => {
-      const total = r.reduce((s, c) => s + c.w, 0) * k, x0 = (W - total) / 2, y0 = 6 + ri * rowH + railH;
-      // white carrier frame (ladder rails above and below the strip)
-      tx.fillStyle = frame; tx.strokeStyle = edge; tx.lineWidth = 1;
-      tx.beginPath(); tx.roundRect(x0 - 16, y0 - railH, total + 32, cellH + railH * 2, 3); tx.fill(); tx.stroke();
-      tx.fillStyle = css('--sc-highest');
-      tx.beginPath(); tx.roundRect(x0 - 4, y0 - 3, total + 8, cellH + 6, 2); tx.fill(); tx.stroke();
-      let x = x0;
-      for (const c of r) {
-        const w = c.w * k;
-        tx.fillStyle = cellFill; tx.strokeStyle = edge; tx.lineWidth = 1;
-        tx.beginPath(); tx.rect(x + .5, y0 + .5, w - 1, cellH - 1); tx.fill(); tx.stroke();
-        tx.save(); tx.beginPath(); tx.rect(x + 1, y0 + 1, w - 2, cellH - 2); tx.clip();
-        tx.translate(x + w / 2, y0 + cellH / 2); if (o.rot) tx.rotate(-o.rot * Math.PI / 180);
-        const L = (o.rot ? cellH : w) - 6, T = (o.rot ? w : cellH) - 6, n = c.lines.length;
-        let fs = Math.min(T / (n * 1.2), o.textH * k * 1.3, 40);
-        tx.fillStyle = ink; tx.textAlign = 'center'; tx.textBaseline = 'middle';
-        const font = z => `500 ${z}px Arial, Helvetica, sans-serif`;
-        tx.font = font(fs);
-        const widest = Math.max(0, ...c.lines.map(t => tx.measureText(t).width));
-        if (widest > L) { fs *= L / widest; tx.font = font(fs); }
-        c.lines.forEach((t, i) => tx.fillText(t, 0, (i - (n - 1) / 2) * fs * 1.2));
-        tx.restore();
-        x += w;
-      }
+    const frame = dark ? '#e4e7eb' : '#f6f7f9', edge = dark ? '#9aa1ab' : '#b9bfc8';
+    tx.lineWidth = 1; tx.strokeStyle = edge; tx.fillStyle = frame;
+    let r = R(f); tx.beginPath(); tx.roundRect(r[0], r[1], r[2], r[3], 4); tx.fill(); tx.stroke();
+    // register holes in the rails
+    tx.fillStyle = dark ? '#aeb4bd' : '#cfd4db';
+    for (const w of shape.windows) { const cy = oy - (w.y + w.h / 2) * k; for (const hx of [ox - CARD.rail / 2 * k, ox + (f.x + f.w - CARD.rail / 2 + 0) * k + 0]) { tx.beginPath(); tx.arc(hx === ox - CARD.rail / 2 * k ? hx : ox + (f.x + f.w - CARD.rail / 2) * k, cy, Math.max(1.5, .6 * k), 0, 7); tx.fill(); } }
+    tx.fillStyle = css('--sc-highest');
+    for (const w of shape.windows) { r = R(w); tx.fillRect(r[0], r[1], r[2], r[3]); tx.strokeRect(r[0] + .5, r[1] + .5, r[2] - 1, r[3] - 1); }
+    for (const c of shape.cells) {
+      r = R(c); tx.fillStyle = '#ffffff'; tx.fillRect(r[0], r[1], r[2], r[3]); tx.strokeStyle = edge; tx.strokeRect(r[0] + .5, r[1] + .5, r[2] - 1, r[3] - 1);
+    }
+    const lab = window.DBLayout.parseLabels($('labels').value, o.cellW);
+    shape.cells.forEach((c, i) => {
+      const L0 = lab[i]; if (!L0) return;
+      r = R(c);
+      tx.save(); tx.beginPath(); tx.rect(r[0] + 1, r[1] + 1, r[2] - 2, r[3] - 2); tx.clip();
+      tx.translate(r[0] + r[2] / 2, r[1] + r[3] / 2); if (o.rot) tx.rotate(-o.rot * Math.PI / 180);
+      const Lx = (o.rot ? r[3] : r[2]) - 6, T = (o.rot ? r[2] : r[3]) - 6, n = L0.lines.length;
+      let fs = Math.min(T / (n * 1.2), o.textH * k * 1.3, 40);
+      tx.fillStyle = '#14171c'; tx.textAlign = 'center'; tx.textBaseline = 'middle';
+      const font = z => `500 ${z}px Arial, Helvetica, sans-serif`;
+      tx.font = font(fs);
+      const widest = Math.max(0, ...L0.lines.map(t => tx.measureText(t).width));
+      if (widest > Lx) { fs *= Lx / widest; tx.font = font(fs); }
+      L0.lines.forEach((t, j) => tx.fillText(t, 0, (j - (n - 1) / 2) * fs * 1.2));
+      tx.restore();
     });
   }
 

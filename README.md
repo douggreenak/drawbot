@@ -59,6 +59,6 @@ On 4.2.x boards, if compile complains about a missing sensor with `TEMP_SENSOR_0
 
 ## Label syntax
 One label per line · `L1|24V` = two text lines · `PE@8` = 8 mm wide cell · **Add numbered** generates `X1:1…`.
-Font is a built-in single-stroke font (A–Z, 0–9, `- + = . , : / ( ) % & # @ Ω µ ° ±`…). Defaults match 5 mm marker strips (10 per row, horizontal text); switch to Up/Down for narrower cells. The bed preview draws the white cards with the pen strokes on them, the **Marker cards** panel shows the finished strips, and **Preview moves** animates every pen-down stroke and pen-up travel (dashed) without touching the printer.
+Font is a built-in single-stroke font (A–Z, 0–9, `- + = . , : / ( ) % & # @ Ω µ ° ±`…). Defaults match the physical marker cards: 5 × 8 mm cells, 10 per strip, 16 mm strip pitch, horizontal text; the preview draws the ladder frame (5.5 mm rails, slots, crossbars) estimated from photos — adjust `CARD` in `web/app.js` if your cards differ; switch to Up/Down for narrower cells. The bed preview draws the white cards with the pen strokes on them, the **Marker cards** panel shows the finished strips, and **Preview moves** animates every pen-down stroke and pen-up travel (dashed) without touching the printer.
 
 Stop sends `M410` and lifts the pen. Settings persist in the browser. **Not tested against a real printer** — try a dry run with the pen up first.
