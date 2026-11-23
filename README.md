@@ -9,9 +9,9 @@ firmware/   apply_drawbot.py — patches stock Marlin 2.1.x Ender-3 config for p
 
 ![Overview](docs/screenshots/00-overview.png)
 
-| Move preview (running) | Move preview (all moves) |
-|---|---|
-| ![](docs/screenshots/11-move-preview-running.png) | ![](docs/screenshots/12-move-preview-done.png) |
+| Move preview (running) | Toolpath check (safe) | Toolpath check (leaves the bed) |
+|---|---|---|
+| ![](docs/screenshots/11-move-preview-running.png) | ![](docs/screenshots/13-toolpath-ok.png) | ![](docs/screenshots/14-toolpath-outside-bed.png) |
 
 | Connected & ready | Paused mid-job (35%) | Finished |
 |---|---|---|
@@ -59,6 +59,6 @@ On 4.2.x boards, if compile complains about a missing sensor with `TEMP_SENSOR_0
 
 ## Label syntax
 One label per line · `L1|24V` = two text lines · `PE@8` = 8 mm wide cell · **Add numbered** generates `X1:1…`.
-Font is a built-in single-stroke font (A–Z, 0–9, `- + = . , : / ( ) % & # @ Ω µ ° ±`…). Pick a **Marker card type** (Weidmüller DEK 5 FW and DEK 5/3,5; Phoenix ZB 5/6/8/10 and flat ZBF 5/6/8 — sizes from the manufacturers' product pages) or enter your own cell size. Default is DEK 5 FW: 5 × 5 mm cells, 10 per strip; the preview draws the ladder frame (5.5 mm rails, slots, crossbars) estimated from photos — adjust `CARD` in `web/app.js` if your cards differ; switch to Up/Down for narrower cells. The bed preview draws the white cards with the pen strokes on them, the **Marker cards** panel shows the finished strips, and **Preview moves** animates every pen-down stroke and pen-up travel (dashed) without touching the printer.
+Font is a built-in single-stroke font (A–Z, 0–9, `- + = . , : / ( ) % & # @ Ω µ ° ±`…). Pick a **Marker card type** (Weidmüller DEK 5 FW and DEK 5/3,5; Phoenix ZB 5/6/8/10 and flat ZBF 5/6/8 — sizes from the manufacturers' product pages) or enter your own cell size. Default is DEK 5 FW: 5 × 5 mm cells, 10 per strip; the preview draws the ladder frame (5.5 mm rails, slots, crossbars) estimated from photos — adjust `CARD` in `web/app.js` if your cards differ; switch to Up/Down for narrower cells. The bed preview draws the white cards with the pen strokes on them, the **Marker cards** panel shows the finished strips, **Toolpath check** replays the exact G-code from your zero point (set where the zero sits on the bed in Machine → *Zero on bed X/Y*) and flags moves outside the bed, Z below the paper, rapid moves with the pen down and ink off the card, drawing problems in red; **Preview moves** animates every pen-down stroke and pen-up travel (dashed) without touching the printer.
 
 Stop sends `M410` and lifts the pen. Settings persist in the browser. **Not tested against a real printer** — try a dry run with the pen up first.

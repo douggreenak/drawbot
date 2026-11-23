@@ -186,3 +186,14 @@ dialog p { margin: 0 0 20px; color: var(--on-surface-variant); white-space: pre-
 .card.tb { background: var(--sc); }
 .tb-wrap { border-radius: var(--r-l); overflow: hidden; background: var(--sc-highest); padding: 6px 0; }
 #tbView { display: block; width: 100%; }
+
+/* ---------- toolpath check ---------- */
+.card.path { background: var(--sc); }
+.issues { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.issues li { padding: 8px 12px; border-radius: var(--r-s); background: var(--sc-high); font-size: 13.5px; }
+.issues li.error { background: var(--error-container); color: var(--on-error-container); }
+.issues li.warn { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+.issues li.ok { background: color-mix(in srgb, var(--ok) 22%, transparent); }
+.pathstats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; color: var(--on-surface-variant); }
+.pathstats b { color: var(--on-surface); font-weight: 600; }
+#zProfile { display: block; width: 100%; height: 70px; }

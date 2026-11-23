@@ -110,6 +110,15 @@
       </div>
     </article>
 
+    <article class="card path" id="pathCard">
+      <div class="row between"><h2>Toolpath check</h2><span class="chip" id="pathChip"><i class="dot"></i><span id="pathChipText">—</span></span></div>
+      <p class="hint">Replays the exact G-code from your zero point and flags moves outside the bed, below the paper, or off the card. Problem moves are drawn red in the preview.</p>
+      <ul class="issues" id="pathIssues"></ul>
+      <div class="pathstats" id="pathStats"></div>
+      <div class="label-s">Pen height along the job (Z)</div>
+      <div class="tb-wrap"><canvas id="zProfile" height="70"></canvas></div>
+    </article>
+
     <article class="card tb">
       <h2>Marker cards</h2>
       <p class="hint">How the finished marker strips will look.</p>
@@ -196,6 +205,8 @@
         <label class="field"><span>Travel speed <small>mm/min</small></span><input id="travelFeed" type="number" step="500" value="6000"></label>
         <label class="field"><span>Card offset X <small>mm</small></span><input id="ox" type="number" step="1" value="20"></label>
         <label class="field"><span>Card offset Y <small>mm</small></span><input id="oy" type="number" step="1" value="20"></label>
+        <label class="field"><span>Zero on bed X <small>mm</small></span><input id="zx" type="number" step="1" value="0"></label>
+        <label class="field"><span>Zero on bed Y <small>mm</small></span><input id="zy" type="number" step="1" value="0"></label>
         <label class="field"><span>Bed X <small>mm</small></span><input id="bedW" type="number" value="220"></label>
         <label class="field"><span>Bed Y <small>mm</small></span><input id="bedH" type="number" value="220"></label>
         <label class="field"><span>Baud rate</span>
@@ -221,6 +232,7 @@
 <script src="font.js"></script>
 <script src="layout.js"></script>
 <script src="gcode.js"></script>
+<script src="toolpath.js"></script>
 <script src="serial.js"></script>
 <script src="mock-serial.js"></script>
 <script src="app.js"></script>

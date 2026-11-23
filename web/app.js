@@ -8,7 +8,7 @@
   // ---------------------------------------------------------------- state
   const SAVE_KEY = 'drawbot.settings.v1';
   const NUM_IDS = ['cellW', 'cellH', 'textH', 'pad', 'rowLen', 'rowGap', 'zUp', 'zDown', 'zFeed', 'svUp', 'svDown', 'svDelay',
-                   'drawFeed', 'travelFeed', 'ox', 'oy', 'bedW', 'bedH'];
+                   'drawFeed', 'travelFeed', 'ox', 'oy', 'bedW', 'bedH', 'zx', 'zy'];
   const CHECK_IDS = ['borders', 'shrink', 'showTravel'];
   const SEGS = { rotSeg: '90', modeSeg: 'z', stepSeg: '10', anchorSeg: 'bl' };
   const state = { design: null, gc: null, job: null, homed: false, zSet: false, doneStrokes: 0 };
@@ -122,8 +122,38 @@
     const bad = s.ox + d.width > s.bedW + 0.01 || s.oy + d.height > s.bedH + 0.01 || s.ox < 0 || s.oy < 0;
     $('stSize').parentElement.classList.toggle('bad', bad);
     state.outOfBed = bad;
+    runPathCheck();
     if (state.pv) { cancelAnimationFrame(pvRaf); pvRaf = 0; state.pv = null; $('btnPreview').querySelector('span').textContent = 'Preview moves'; }
     draw(); drawBlocks();
+  }
+
+  // ---------------------------------------------------------------- toolpath check
+  function runPathCheck() {
+    const s = settings(), d = state.design;
+    const sh = cardShape(d, num('rowGap', 4));
+    const card = sh ? { x: s.ox + sh.frame.x, y: s.oy + sh.frame.y, w: sh.frame.w, h: sh.frame.h } : null;
+    const p = state.path = window.DBPath.simulate(state.gc.lines, { ...s, zx: num('zx', 0), zy: num('zy', 0) }, card);
+    const ul = $('pathIssues');
+    ul.innerHTML = '';
+    p.issues.forEach(i => { const li = document.createElement('li'); li.className = i.level; li.textContent = (i.level === 'error' ? '✗ ' : '! ') + i.text + (i.count > 1 ? ` (${i.count} moves)` : '') + (i.at ? ` — first at X${i.at[0].toFixed(1)} Y${i.at[1].toFixed(1)}` : ''); ul.appendChild(li); });
+    if (!p.issues.length) { const li = document.createElement('li'); li.className = 'ok'; li.textContent = `✓ All ${p.moves} moves stay on the bed, above the paper and on the card.`; ul.appendChild(li); }
+    const b = p.bbox, zxm = num('zx', 0), zym = num('zy', 0);
+    $('pathStats').innerHTML = `<span>Travel area <b>X ${(b.minX + zxm).toFixed(0)}–${(b.maxX + zxm).toFixed(0)}, Y ${(b.minY + zym).toFixed(0)}–${(b.maxY + zym).toFixed(0)}</b> (bed coords)</span><span>Z range <b>${p.zmin.toFixed(1)} … ${p.zmax.toFixed(1)} mm</b></span><span>Ink <b>${p.drawLen.toFixed(0)} mm</b></span><span>Pen-up travel <b>${p.travelLen.toFixed(0)} mm</b></span>`;
+    const chip = $('pathChip'); chip.className = 'chip ' + (p.errors ? 'err' : p.issues.length ? 'warn' : 'ok');
+    $('pathChipText').textContent = p.errors ? `${p.errors} problem${p.errors > 1 ? 's' : ''}` : p.issues.length ? 'Warnings' : 'Path is safe';
+    drawProfile();
+  }
+  function drawProfile() {
+    const cv2 = $('zProfile'), c2 = cv2.getContext('2d'), p = state.path; if (!p) return;
+    const dpr = window.devicePixelRatio || 1, W = cv2.clientWidth, H = 70; if (!W) return;
+    cv2.width = W * dpr; cv2.height = H * dpr; c2.setTransform(dpr, 0, 0, dpr, 0, 0); c2.clearRect(0, 0, W, H);
+    const zlo = Math.min(-1, p.zmin), zhi = Math.max(1, p.zmax), Y = z => H - 8 - (z - zlo) / (zhi - zlo) * (H - 16);
+    c2.strokeStyle = css('--outline'); c2.lineWidth = 1; c2.setLineDash([4, 3]); c2.beginPath(); c2.moveTo(0, Y(0)); c2.lineTo(W, Y(0)); c2.stroke(); c2.setLineDash([]);
+    c2.fillStyle = css('--on-surface-variant'); c2.font = '500 10px Roboto Flex, sans-serif'; c2.fillText('paper (Z 0)', 4, Y(0) - 3);
+    const n = p.segs.length; if (!n) return;
+    c2.beginPath(); p.segs.forEach((sg, i) => { const px = (i / n) * W; i ? c2.lineTo(px, Y(sg.z0)) : c2.moveTo(px, Y(sg.z0)); c2.lineTo(((i + 1) / n) * W, Y(sg.z1)); });
+    c2.strokeStyle = css('--primary'); c2.lineWidth = 1.5; c2.stroke();
+    p.segs.forEach((sg, i) => { if (sg.bad) { c2.fillStyle = css('--error'); c2.fillRect((i / n) * W, H - 4, Math.max(1, W / n), 4); } });
   }
 
   // ---------------------------------------------------------------- card geometry
@@ -173,7 +203,8 @@
   let geo = { m: 14, scale: 1 };
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   function draw() {
-    const s = settings(), d = state.design;
+    const s0 = settings(), d = state.design, zx = num('zx', 0), zy = num('zy', 0);
+    const s = { ...s0, ox: s0.ox + zx, oy: s0.oy + zy };   // design position in bed coordinates
     const dpr = window.devicePixelRatio || 1;
     cv.style.aspectRatio = `${s.bedW} / ${s.bedH}`;
     const W = cv.clientWidth, H = cv.clientHeight;
@@ -217,17 +248,18 @@
         const use = Math.min(left, mv.len); left -= use;
         const pts = pointsUpTo(mv.pts, use);
         cx.beginPath();
-        pts.forEach((pt, k) => { const a = P(s.ox + pt[0], s.oy + pt[1]); k ? cx.lineTo(a[0], a[1]) : cx.moveTo(a[0], a[1]); });
-        if (mv.down) { cx.setLineDash([]); cx.strokeStyle = INK; cx.globalAlpha = 1; cx.lineWidth = Math.max(1.4, 0.45 * scale); }
+        pts.forEach((pt, k) => { const a = P(zx + pt[0], zy + pt[1]); k ? cx.lineTo(a[0], a[1]) : cx.moveTo(a[0], a[1]); });
+        if (mv.bad) { cx.setLineDash([]); cx.strokeStyle = css('--error'); cx.globalAlpha = 1; cx.lineWidth = 2.5; }
+        else if (mv.down) { cx.setLineDash([]); cx.strokeStyle = INK; cx.globalAlpha = 1; cx.lineWidth = Math.max(1.4, 0.45 * scale); }
         else { cx.setLineDash([4, 3]); cx.strokeStyle = css('--tertiary'); cx.globalAlpha = .9; cx.lineWidth = 1.2; }
         cx.stroke();
-        if (left <= 0) { const e = P(s.ox + pts[pts.length - 1][0], s.oy + pts[pts.length - 1][1]); cx.setLineDash([]); cx.globalAlpha = 1; cx.fillStyle = mv.down ? INK : css('--tertiary'); cx.beginPath(); cx.arc(e[0], e[1], 4, 0, 7); cx.fill(); }
+        if (left <= 0) { const e = P(zx + pts[pts.length - 1][0], zy + pts[pts.length - 1][1]); cx.setLineDash([]); cx.globalAlpha = 1; cx.fillStyle = mv.down ? INK : css('--tertiary'); cx.beginPath(); cx.arc(e[0], e[1], 4, 0, 7); cx.fill(); }
       }
       cx.setLineDash([]); cx.globalAlpha = 1;
     } else {
       if ($('showTravel').checked) {
         cx.strokeStyle = css('--tertiary'); cx.globalAlpha = .6; cx.lineWidth = 1; cx.setLineDash([3, 3]); cx.beginPath();
-        let cur = P(0, 0); cx.moveTo(cur[0], cur[1]);
+        let cur = P(zx, zy); cx.moveTo(cur[0], cur[1]);
         for (const st of d.strokes) { const a = P(s.ox + st[0][0], s.oy + st[0][1]); cx.lineTo(a[0], a[1]); const b = P(s.ox + st[st.length - 1][0], s.oy + st[st.length - 1][1]); cx.moveTo(b[0], b[1]); }
         cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1;
       }
@@ -239,7 +271,18 @@
         cx.stroke();
       });
     }
+    // toolpath safety overlay: travel envelope, zero point, problem moves
+    const pth = state.path;
+    if (pth && !state.pv) {
+      const b = pth.bbox, e0 = P(zx + b.minX, zy + b.minY), e1 = P(zx + b.maxX, zy + b.maxY);
+      cx.setLineDash([5, 4]); cx.strokeStyle = pth.errors ? css('--error') : css('--tertiary'); cx.lineWidth = 1.2; cx.globalAlpha = .9;
+      cx.strokeRect(e0[0], e1[1], e1[0] - e0[0], e0[1] - e1[1]); cx.setLineDash([]); cx.globalAlpha = 1;
+      cx.strokeStyle = css('--error'); cx.lineWidth = 2.5;
+      for (const sg of pth.segs) if (sg.bad) { const a1 = P(zx + sg.x0, zy + sg.y0), b1 = P(zx + sg.x1, zy + sg.y1); cx.beginPath(); cx.moveTo(a1[0], a1[1]); cx.lineTo(b1[0], b1[1]); cx.stroke(); }
+    }
+    { const z0 = P(zx, zy); cx.strokeStyle = css('--on-surface'); cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(z0[0] - 7, z0[1]); cx.lineTo(z0[0] + 7, z0[1]); cx.moveTo(z0[0], z0[1] - 7); cx.lineTo(z0[0], z0[1] + 7); cx.stroke(); cx.beginPath(); cx.arc(z0[0], z0[1], 4, 0, 7); cx.stroke(); }
     cx.restore();
+    if (pth && pth.issues.some(i => i.text.startsWith('Moves outside'))) { cx.strokeStyle = css('--error'); cx.lineWidth = 3; cx.beginPath(); cx.roundRect(m, H - m - s.bedH * scale, s.bedW * scale, s.bedH * scale, 18); cx.stroke(); }
 
     // axis labels
     cx.fillStyle = css('--on-surface-variant'); cx.font = '500 11px Roboto Flex, sans-serif'; cx.textAlign = 'center';
@@ -257,18 +300,14 @@
     }
     return out;
   }
-  function buildMoves(strokes) {
-    const moves = []; let cur = [-state_ox(), -state_oy()], total = 0;   // start from the machine origin (0,0)
-    for (const st of strokes) {
-      const t = [cur, st[0]], tl = Math.hypot(st[0][0] - cur[0], st[0][1] - cur[1]);
-      if (tl > 0.01) { moves.push({ pts: t, len: tl, down: false }); total += tl; }
-      let dl = 0; for (let i = 1; i < st.length; i++) dl += Math.hypot(st[i][0] - st[i - 1][0], st[i][1] - st[i - 1][1]);
-      moves.push({ pts: st, len: Math.max(dl, 0.01), down: true }); total += Math.max(dl, 0.01);
-      cur = st[st.length - 1];
+  function buildMoves() {
+    const moves = []; let total = 0;
+    for (const sg of state.path.segs) {
+      const len = Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0); if (len < 1e-3) continue;
+      moves.push({ pts: [[sg.x0, sg.y0], [sg.x1, sg.y1]], len, down: sg.down, bad: sg.bad }); total += len;
     }
     return { moves, total };
   }
-  const state_ox = () => num('ox', 20), state_oy = () => num('oy', 20);
   let pvRaf = 0;
   function stopPreview(keep) {
     cancelAnimationFrame(pvRaf); pvRaf = 0;
@@ -278,7 +317,7 @@
   }
   function startPreview() {
     if (!state.design.strokes.length) return;
-    const { moves, total } = buildMoves(state.design.strokes);
+    const { moves, total } = buildMoves();
     const speed = Math.max(total / 8, 60);            // whole run takes ~8 s, never slower than 60 mm/s
     state.pv = { moves, total, pos: 0 };
     $('btnPreview').querySelector('span').textContent = 'Skip to end';
@@ -294,11 +333,11 @@
   $('btnPreview').onclick = () => {
     if (pvRaf) { state.pv.pos = state.pv.total; stopPreview(true); } else startPreview();
   };
-  window.addEventListener('resize', () => { draw(); drawBlocks(); });
+  window.addEventListener('resize', () => { draw(); drawBlocks(); drawProfile(); });
   function setTheme(t, persist) {
     document.documentElement.dataset.theme = t;
     if (persist) { try { localStorage.setItem('drawbot.theme', t); } catch (e) { /* private mode */ } }
-    draw(); drawBlocks(); kickWave();
+    draw(); drawBlocks(); drawProfile(); kickWave();
   }
   $('btnTheme').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
@@ -461,6 +500,7 @@
     if (!state.design.strokes.length) { toast('Nothing to draw — add some labels.'); return; }
     const warn = [];
     if (state.outOfBed) warn.push('• The drawing extends past the bed.');
+    (state.path ? state.path.issues : []).forEach(i => warn.push('• ' + i.text + (i.count > 1 ? ` (${i.count} moves)` : '')));
     if (!state.homed) warn.push('• Zero (Set 0 XYZ) has not been set this session.');
     if (settings().penMode === 'z' && !state.zSet) warn.push('• Paper height (Z = 0) has not been set.');
     if (warn.length && !(await confirmDlg('Check before drawing', warn.join('\n') + '\n\nThe pen may crash or draw in the wrong place.', 'Draw anyway'))) return;
@@ -506,7 +546,7 @@
   // ---------------------------------------------------------------- wiring
   const DESIGN_IDS = ['labels', 'cellW', 'cellH', 'textH', 'pad', 'rowLen', 'rowGap', 'borders', 'shrink'];
   DESIGN_IDS.forEach(id => $(id).addEventListener('input', () => { relayout(); save(); }));
-  ['zUp', 'zDown', 'zFeed', 'svUp', 'svDown', 'svDelay', 'drawFeed', 'travelFeed', 'ox', 'oy', 'bedW', 'bedH', 'showTravel', 'baud', 'genPrefix', 'genStart', 'genCount', 'genSuffix']
+  ['zUp', 'zDown', 'zFeed', 'svUp', 'svDown', 'svDelay', 'drawFeed', 'travelFeed', 'ox', 'oy', 'zx', 'zy', 'bedW', 'bedH', 'showTravel', 'baud', 'genPrefix', 'genStart', 'genCount', 'genSuffix']
     .forEach(id => $(id).addEventListener('input', () => { regen(); save(); }));
 
   load(); syncMode();

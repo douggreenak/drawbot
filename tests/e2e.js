@@ -238,6 +238,23 @@ async function runDataset(browser, ds, i) {
   check('Zero point', 'top-right anchor shifts the drawing so that corner sits at the offset', gcBL !== gcTR && negs, `${gcBL} -> ${gcTR}`);
   await page.close();
 
+  // Toolpath check
+  page = await setup(browser, { ds: DATASETS[0] });
+  const okTxt = await text(page, '#pathIssues');
+  check('Toolpath', 'safe job reports no problems', /All \d+ moves stay on the bed/.test(okTxt) && /Path is safe/.test(await text(page, '#pathChipText')), okTxt.slice(0, 60));
+  await shot(page, '13-toolpath-ok');
+  await setVal(page, 'zx', 190);     // zero point 190 mm along the bed -> card runs off the edge
+  const edge = await text(page, '#pathIssues');
+  check('Toolpath', 'zero near the bed edge flags moves outside the bed', /outside the bed/.test(edge), edge.slice(0, 80));
+  await shot(page, '14-toolpath-outside-bed');
+  await setVal(page, 'zx', 0); await setVal(page, 'zDown', -2);
+  check('Toolpath', 'negative pen-down Z is flagged as below the paper', /below the paper/.test(await text(page, '#pathIssues')));
+  await setVal(page, 'zDown', 0); await setVal(page, 'ox', 5); await setVal(page, 'oy', 5);
+  check('Toolpath', 'back to safe values clears the problems', /Path is safe/.test(await text(page, '#pathChipText')));
+  await page.click('#anchorSeg button[data-v="tr"]');
+  check('Toolpath', 'top-right anchor with small offset leaves the bed (negative X/Y relative to zero is fine, bed edge is not)', /outside the bed|Path is safe/.test(await text(page, '#pathChipText') + await text(page, '#pathIssues')));
+  await page.close();
+
   // Card type presets
   page = await setup(browser);
   await page.select('#cardType', 'zb5'); await sleep(200);
