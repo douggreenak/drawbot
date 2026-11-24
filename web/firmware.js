@@ -61,7 +61,7 @@
 
   /** Downloads the stock configs for `board`, patches them, returns {blob, report, filename}. */
   async function build(board, servo) {
-    const [c, a] = await Promise.all([fetchText(BASE + board + '/Configuration.h'), fetchText(BASE + board + '/Configuration_adv.h')]);
+    const [c, a, bs, ss] = await Promise.all(['Configuration.h', 'Configuration_adv.h', '_Bootscreen.h', '_Statusscreen.h'].map(n => fetchText(BASE + board + '/' + n)));
     const p = patch(c, a, { servo });
     const readme = `Drawbot firmware (${BOARDS[board] || board}${servo ? ', servo pen lift' : ', Z-axis pen lift'})
 Generated ${new Date().toISOString().slice(0, 10)} from the current MarlinFirmware/Configurations bugfix-2.1.x stock Ender-3 config.
@@ -71,12 +71,12 @@ ${p.report.map(l => '  ' + l).join('\n')}
 
 To build and flash:
  1. Get Marlin 2.1.x: https://github.com/MarlinFirmware/Marlin (branch bugfix-2.1.x)
- 2. Copy Marlin/Configuration.h and Marlin/Configuration_adv.h from this zip over the ones in Marlin/Marlin/
+ 2. Copy the four Marlin/*.h files from this zip over the ones in Marlin/Marlin/
  3. Open the Marlin folder in VS Code with PlatformIO, pick the env for your board (melzi for 1.1.x, STM32F103RET6_creality for 4.2.x), Build, then Upload (or copy the .bin to an SD card for 4.2.x boards).
  4. Not compiled or tested on hardware by this tool - check the build output.
  5. On 4.2.x boards, if the build complains about a missing sensor, set TEMP_SENSOR_0 to 998.
 `;
-    const blob = zip([{ name: 'Marlin/Configuration.h', data: p.cfg }, { name: 'Marlin/Configuration_adv.h', data: p.adv }, { name: 'README.txt', data: readme }]);
+    const blob = zip([{ name: 'Marlin/Configuration.h', data: p.cfg }, { name: 'Marlin/Configuration_adv.h', data: p.adv }, { name: 'Marlin/_Bootscreen.h', data: bs }, { name: 'Marlin/_Statusscreen.h', data: ss }, { name: 'README.txt', data: readme }]);
     return { blob, report: p.report, filename: `drawbot-firmware-${board}${servo ? '-servo' : ''}.zip` };
   }
 
