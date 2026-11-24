@@ -19,8 +19,8 @@
   function exec(raw) {
     const line = raw.replace(/;.*$/, '').trim();
     if (!line) return;
-    m.commands++; m.log.push(line);
     const w = line.split(/\s+/), cmd = w[0].toUpperCase();
+    if (cmd !== 'M114') { m.commands++; m.log.push(line); }   // M114 is the app's position poll; keep it out of the counters
     const val = a => { const t = w.find(x => x[0].toUpperCase() === a); return t ? parseFloat(t.slice(1)) : undefined; };
     if (cmd === 'G0' || cmd === 'G1') {
       const n = { x: m.pos.x, y: m.pos.y, z: m.pos.z };
@@ -34,9 +34,11 @@
     else if (cmd === 'G91') m.rel = true;
     else if (cmd === 'G92') { const x = val('X'), y = val('Y'), z = val('Z'); if (x !== undefined) m.pos.x = x; if (y !== undefined) m.pos.y = y; if (z !== undefined) { m.pos.z = z; setPen(z <= 0.01); } }
     else if (cmd === 'M280') { m.servoAngle = val('S'); setPen(m.servoAngle <= 60); }
+    else if (cmd === 'M114') { reply(`X:${m.pos.x.toFixed(2)} Y:${m.pos.y.toFixed(2)} Z:${m.pos.z.toFixed(2)} E:0.00 Count X:0 Y:0 Z:0`); }
+    else if (cmd === 'M502' || cmd === 'M500') { m.eepromReset = (m.eepromReset || 0) + 1; }
     else if (cmd === 'M410') { queue.length = 0; m.occupancy = 0; m.stopped++; }
-    else if (cmd === 'M115') { reply('FIRMWARE_NAME:Marlin 2.1.2.5 (Drawbot mock) SOURCE_CODE_URL:github.com/MarlinFirmware/Marlin MACHINE_TYPE:Drawbot'); }
-    else if (!['G21', 'G4', 'M400', 'M84'].includes(cmd)) { reply('echo:Unknown command: "' + line + '"'); }
+    else if (cmd === 'M115') { reply('FIRMWARE_NAME:Marlin 2.1.2.5 (Drawbot mock) SOURCE_CODE_URL:github.com/MarlinFirmware/Marlin MACHINE_TYPE:' + (q.has('stock') ? 'Ender-3' : 'Drawbot')); }
+    else if (!['G21', 'G4', 'M400', 'M84', 'M18', 'M500', 'M502'].includes(cmd)) { reply('echo:Unknown command: "' + line + '"'); }
   }
 
   function step() {
@@ -77,11 +79,11 @@
   const port = {
     async open(o) {
       m.baud = o.baudRate;
-      this.readable = new ReadableStream({ start(c) { ctrl = c; setTimeout(() => reply('start\necho: Marlin 2.1.2.5 (mock)'), 50); } });
+      this.readable = new ReadableStream({ start(c) { ctrl = c; setTimeout(() => { reply('start\necho: Marlin 2.1.2.5 (mock)'); if (q.has('eeprom')) reply('echo:EEPROM version mismatch (EEPROM=V87 Firmware=V90)'); }, 50); } });
       this.writable = new WritableStream({ write: onData });
     },
     async close() { try { ctrl && ctrl.close(); } catch (e) { /* ignore */ } },
   };
-  Object.defineProperty(navigator, 'serial', { value: { requestPort: async () => port, addEventListener() {} }, configurable: true });
+  Object.defineProperty(navigator, 'serial', { value: { requestPort: async () => { window.__granted = true; return port; }, getPorts: async () => (q.has('granted') || window.__granted) ? [port] : [], addEventListener() {} }, configurable: true });
   document.title += ' (demo mode)';
 })();

@@ -10,16 +10,22 @@
       this.paused = false; this.connected = false;
       this.onLog = () => {}; this.onState = () => {}; this.onAck = () => {}; this.onIdle = () => {};
       this.firmware = '';
+      this.info = null;            // parsed M115: {name, machine, source, drawbot}
+      this.pos = null;             // last M114: {x,y,z}
       this.halted = false;
+      this.onPos = () => {}; this.onInfo = () => {}; this.onNotice = () => {};
     }
 
     static supported() { return 'serial' in navigator; }
 
-    async connect(baud) {
-      this.port = await navigator.serial.requestPort();
+    /** Ports the user already granted on this site (lets us reconnect without the picker). */
+    static async knownPorts() { try { return await navigator.serial.getPorts(); } catch (e) { return []; } }
+
+    async connect(baud, port) {
+      this.port = port || await navigator.serial.requestPort();
       await this.port.open({ baudRate: baud, bufferSize: 4096 });
       this.writer = this.port.writable.getWriter();
-      this.connected = true; this.halted = false; this.firmware = '';
+      this.connected = true; this.halted = false; this.firmware = ''; this.info = null; this.pos = null;
       this.onState('connecting');
       this.readLoop();
       // Opening the port usually resets the board. Give the bootloader + banner time.
@@ -62,10 +68,17 @@
         return;
       }
       if (/FIRMWARE_NAME/i.test(line)) {
-        this.firmware = (line.match(/FIRMWARE_NAME:([^ ]+(?: [\d.x]+)?)/i) || [, 'Marlin'])[1];
-        this.onLog('rx', line);
+        const name = (line.match(/FIRMWARE_NAME:\s*(.*?)(?=\s+[A-Z_]+:|$)/) || [, 'Marlin'])[1].trim();
+        const machine = (line.match(/MACHINE_TYPE:\s*(.*?)(?=\s+[A-Z_]+:|$)/) || [, ''])[1].trim();
+        const source = (line.match(/SOURCE_CODE_URL:\s*(\S+)/) || [, ''])[1];
+        this.firmware = name.replace(/^(Marlin\s+\S+).*$/, '$1') || 'Marlin';
+        this.info = { name, machine, source, drawbot: /drawbot/i.test(machine) };
+        this.onLog('rx', line); this.onInfo(this.info);
         return;
       }
+      const mp = line.match(/^X:(-?[\d.]+)\s+Y:(-?[\d.]+)\s+Z:(-?[\d.]+)/);
+      if (mp) { this.pos = { x: +mp[1], y: +mp[2], z: +mp[3] }; this.onPos(this.pos); this.onLog('rx', line, true); return; }
+      if (/EEPROM version|Hardcoded Default Settings Loaded|EEPROM CRC mismatch|EEPROM.*mismatch/i.test(line)) this.onNotice('eeprom', line);
       if (/^echo:busy/i.test(line)) return;
       if (/Printer halted|kill\(\)|Error:/i.test(line)) {
         this.onLog('err', line);
@@ -104,7 +117,7 @@
           }
           this.queue.shift();
           this.inflight.push(next); this.inflightChars += next.len;
-          this.onLog('tx', next.line, next.tag >= 0);
+          this.onLog('tx', next.line, next.tag >= 0 || next.line === 'M114');
           await this.writer.write(new TextEncoder().encode(next.line + '\n'));
         }
       } catch (e) {

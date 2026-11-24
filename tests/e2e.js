@@ -34,7 +34,7 @@ const DATASETS = [
     labels: 'A', num: {}, seg: { rotSeg: '90', modeSeg: 'z' }, checks: { borders: false } },
 ];
 
-async function setup(browser, { viewport = { width: 1440, height: 1000 }, dark = true, query = '?mock', ds } = {}) {
+async function setup(browser, { viewport = { width: 1440, height: 1000 }, dark = true, query = '?mock', ds, plain = false } = {}) {
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -46,6 +46,7 @@ async function setup(browser, { viewport = { width: 1440, height: 1000 }, dark =
   await page.reload({ waitUntil: 'load' });
   await page.evaluate(() => document.fonts && document.fonts.ready);
   page.errors = errors;
+  if (!plain) await page.evaluate(() => document.querySelectorAll('.step, .adv').forEach(s => s.classList.add('open')));
   if (ds) await applyDataset(page, ds);
   return page;
 }
@@ -55,7 +56,7 @@ async function applyDataset(page, ds) {
   await setVal(page, 'labels', ds.labels);
   for (const [k, v] of Object.entries(ds.num || {})) await setVal(page, k, v);
   for (const [k, v] of Object.entries(ds.checks || {})) await setCheck(page, k, v);
-  for (const [k, v] of Object.entries(ds.seg || {})) await page.click(`#${k} button[data-v="${v}"]`);
+  for (const [k, v] of Object.entries(ds.seg || {})) await page.evaluate((k, v) => document.querySelector(`#${k} button[data-v="${v}"]`).click(), k, v);
 }
 const text = (page, sel) => page.$eval(sel, e => e.textContent);
 async function connect(page) {
@@ -100,7 +101,7 @@ async function runDataset(browser, ds, i) {
   check(G, 'design fits on the bed', expect.set.ox + expect.w <= expect.set.bedW && expect.set.oy + expect.h <= expect.set.bedH, `(${expect.w.toFixed(0)}×${expect.h.toFixed(0)} mm at ${expect.set.ox},${expect.set.oy})`);
 
   await connect(page);
-  check(G, 'connected and detected Marlin', /Marlin/.test(await text(page, '#statusText')), `("${await text(page, '#statusText')}")`);
+  check(G, 'connected and detected the Drawbot firmware', /Drawbot firmware detected/.test(await text(page, '#fwStatusTitle')), `("${await text(page, '#fwStatusTitle')}")`);
   if (i === 0) await shot(page, '02-connected');
   await page.click('#btnZero');
   if (ds.seg.modeSeg === 'z') await page.click('#btnSetZ');
@@ -138,7 +139,7 @@ async function runDataset(browser, ds, i) {
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
 
   // 0. First look
-  let page = await setup(browser);
+  let page = await setup(browser, { plain: true });
   await shot(page, '00-overview');
   check('UI', 'page loads in demo mode with no errors', page.errors.length === 0, page.errors.join('; '));
   await page.close();
@@ -161,7 +162,7 @@ async function runDataset(browser, ds, i) {
   await shot(page, '03-paused-midjob');
   await page.click('#btnPause'); await waitDone(page);
   const dl = await page.evaluate(() => window.__mock.drawn.reduce((a, [x0, y0, x1, y1]) => a + Math.hypot(x1 - x0, y1 - y0), 0));
-  check(G, 'UI reports Done only after the last command executed', await page.evaluate(() => window.__mock.log.length === window.DBApp.state.gc.lines.filter(l => l.replace(/;.*$/, '').trim()).length + window.__mock.log.indexOf('G21')));
+  check(G, 'UI reports Done only after the last command executed', await page.evaluate(() => window.__mock.log.filter(l => l !== 'M114').length === window.DBApp.state.gc.lines.filter(l => l.replace(/;.*$/, '').trim()).length + window.__mock.log.filter(l => l !== 'M114').indexOf('G21')));
   check(G, 'job completes after resume with correct ink', Math.abs(dl - exp) / exp < 0.005, `(${dl.toFixed(1)} vs ${exp.toFixed(1)} mm)`);
   await page.close();
 
@@ -208,24 +209,91 @@ async function runDataset(browser, ds, i) {
   check(G, 'disconnects cleanly', true);
   await page.close();
 
-  // 5. Safety dialog
+  // 5. Safety: Draw is blocked until the checklist is satisfied
   console.log('\n== Safety checks');
-  G = 'Safety dialog';
+  G = 'Safety checks';
   page = await setup(browser, { ds: DATASETS[0] });
   await setVal(page, 'ox', 205);
   await connect(page);
   const before = await page.evaluate(() => window.__mock.commands);
-  await page.click('#btnStart'); await page.waitForSelector('dialog[open]');
-  const dtxt = await text(page, '#dlgBody');
-  check(G, 'warns about off-bed drawing and unset zero', /past the bed/.test(dtxt) && /Zero/.test(dtxt) && /Z = 0/.test(dtxt));
+  await page.click('#btnStart'); await sleep(300);
+  check(G, 'Draw refuses while zero is not set', /Set zero first/.test(await text(page, '#snack')) && !(await page.$('dialog[open]')));
   await shot(page, '07-safety-dialog');
-  await page.click('#dlgNo'); await sleep(300);
-  check(G, 'Cancel sends nothing', (await page.evaluate(() => window.__mock.commands)) === before);
+  await page.click('#btnZero'); await page.waitForFunction(() => window.DBApp.printer.inflight.length === 0 && !window.DBApp.printer.queue.length);
+  const mid = await page.evaluate(() => window.__mock.commands);
+  await page.click('#btnStart'); await sleep(300);
+  check(G, 'Draw refuses a drawing that extends past the bed', /past the bed/.test(await text(page, '#snack')));
+  check(G, 'blocked Draw sends nothing', (await page.evaluate(() => window.__mock.commands)) === mid && mid >= before);
+  check(G, 'Draw bar shows the path check failing', await page.evaluate(() => document.getElementById('chkPath').classList.contains('bad') && document.getElementById('chkPrinter').classList.contains('ok') && document.getElementById('chkZero').classList.contains('ok')));
   await shot(page, '08-offbed-preview');
+  await setVal(page, 'ox', 20); await setVal(page, 'zDown', 1);
+  await page.click('#btnStart'); await page.waitForSelector('dialog[open]');
+  check(G, 'warnings (not errors) ask for confirmation', /may not reach the paper/.test(await text(page, '#dlgBody')));
+  const m2 = await page.evaluate(() => window.__mock.commands);
+  await page.click('#dlgNo'); await sleep(300);
+  check(G, 'Cancel sends nothing', (await page.evaluate(() => window.__mock.commands)) === m2);
+  await page.close();
+
+  // Honest path chip, live position, firmware detection, quick add, edit cell, strips, test square, dry run
+  console.log('\n== Guided flow');
+  G = 'Guided flow';
+  page = await setup(browser, { ds: DATASETS[0] });
+  check(G, 'path chip does not claim "safe" before zero is set', /set zero/i.test(await text(page, '#pathChipText')), await text(page, '#pathChipText'));
+  await connect(page);
+  await page.waitForFunction(() => document.getElementById('posX').textContent !== '–', { timeout: 5000 });
+  check(G, 'live position appears after connecting', true);
+  await page.click('[data-jog="X"][data-dir="1"]'); await sleep(900);
+  check(G, 'position readout follows a jog', (await text(page, '#posX')) === '10.0', await text(page, '#posX'));
+  await page.keyboard.press('ArrowUp'); await sleep(900);
+  check(G, 'arrow keys jog the pen', (await text(page, '#posY')) === '10.0', await text(page, '#posY'));
+  await page.click('#btnZero'); await sleep(400);
+  check(G, 'Set zero here → position reads 0,0', (await text(page, '#posX')) === '0.0' && (await text(page, '#posY')) === '0.0');
+  check(G, 'path chip confirms safe once zero is set', /Path is safe/.test(await text(page, '#pathChipText')));
+  check(G, 'all three Draw-bar checks are ticked', await page.evaluate(() => ['chkPrinter', 'chkZero', 'chkPath'].every(i => document.getElementById(i).classList.contains('ok'))));
+  // quick add
+  await page.click('#btnClear'); await page.type('#quickAdd', 'X1:1-4, PE, L1-L3'); await page.click('#btnQuick');
+  check(G, 'range quick-add expands X1:1-4, PE, L1-L3', (await page.$eval('#labels', e => e.value)) === 'X1:1\nX1:2\nX1:3\nX1:4\nPE\nL1\nL2\nL3');
+  // click-to-edit cell
+  await page.evaluate(() => document.getElementById('tbView').scrollIntoView({ block: 'center' })); await sleep(200);
+  await page.evaluate(() => { const g = window.DBApp.state.tbGeo, r = g.R(g.cells[1]); const b = document.getElementById('tbView').getBoundingClientRect(); window.__pt = [b.left + r[0] + r[2] / 2, b.top + r[1] + r[3] / 2]; });
+  const [ex, ey] = await page.evaluate(() => window.__pt);
+  await page.mouse.click(ex, ey); await sleep(150);
+  await page.keyboard.type('NEW'); await page.keyboard.press('Enter'); await sleep(200);
+  check(G, 'clicking a cell edits that label', (await page.$eval('#labels', e => e.value.split('\n')[1])) === 'NEW', await page.$eval('#labels', e => e.value.split('\n')[1]));
+  // strips
+  await setVal(page, 'labels', Array.from({ length: 24 }, (_, i) => i + 1).join('\n')); await setVal(page, 'rowLen', 50); await setVal(page, 'cellW', 5);
+  const nStrips = await page.evaluate(() => window.DBApp.state.design.rows);
+  const allStrokes = await page.evaluate(() => window.DBApp.state.gc.lines.filter(l => /^G1 X/.test(l)).length);
+  await page.click('#stripSeg button[data-v="1"]');
+  const oneStrokes = await page.evaluate(() => window.DBApp.state.gc.lines.filter(l => /^G1 X/.test(l)).length);
+  check(G, 'strip picker limits G-code to one strip', nStrips >= 2 && oneStrokes < allStrokes && oneStrokes > 0, `(${nStrips} strips; ${oneStrokes} of ${allStrokes} draw moves)`);
+  const c0 = await page.evaluate(() => window.__mock.drawn.length);
+  await page.click('#stripSeg button[data-v="all"]');
+  // dry run: pen never goes down
+  const d0 = await page.evaluate(() => ({ downs: window.__mock.penDowns, drawn: window.__mock.drawn.length }));
+  await page.click('#btnDry'); await waitDone(page);
+  const d1 = await page.evaluate(() => ({ downs: window.__mock.penDowns, drawn: window.__mock.drawn.length }));
+  check(G, 'dry run moves the printer but never lowers the pen', d1.downs === d0.downs && d1.drawn === d0.drawn);
+  await page.click('#btnTest'); await waitDone(page);
+  const d2 = await page.evaluate(() => ({ downs: window.__mock.penDowns, drawn: window.__mock.drawn }));
+  check(G, 'test square draws a 20 × 20 mm square at zero', d2.downs === d1.downs + 1 && d2.drawn.length - d1.drawn >= 4 && Math.max(...d2.drawn.slice(d1.drawn).flatMap(s => [s[0], s[2]])) === 20, `(${d2.drawn.length - d1.drawn} segments)`);
+  check(G, 'no JS errors in the page', page.errors.length === 0, page.errors.join('; '));
+  await shot(page, '15-guided-flow');
+  await page.close();
+
+  // Stock firmware + EEPROM notice
+  page = await setup(browser, { query: '?mock&stock&eeprom' });
+  await connect(page);
+  check(G, 'stock firmware is called out with a download hint', /not the Drawbot firmware/.test(await text(page, '#fwStatusTitle')) && await page.$eval('#fwAdv', e => e.classList.contains('open')));
+  check(G, 'EEPROM message offers a one-click reset', await page.evaluate(() => !document.getElementById('btnReset').hidden));
+  await page.click('#btnReset'); await sleep(300);
+  check(G, 'reset sends M502 + M500', await page.evaluate(() => window.__mock.eepromReset === 2));
+  await shot(page, '16-stock-firmware');
+  await page.click('#btnConnect'); await page.waitForFunction(() => /Not connected/.test(document.getElementById('statusText').textContent));
   await page.close();
 
   // 6. Dark theme + mobile
-  page = await setup(browser, { dark: false, ds: DATASETS[1] }); await shot(page, '09-light-theme'); await page.close();
+  page = await setup(browser, { dark: false, ds: DATASETS[1], plain: true }); await shot(page, '09-light-theme'); await page.close();
   // Zero point + anchor corner
   page = await setup(browser, { ds: { labels: '1\n2\n3', num: { cellW: 5, cellH: 5, ox: 10, oy: 10 }, seg: { rotSeg: '0' } } });
   await connect(page);
@@ -241,7 +309,7 @@ async function runDataset(browser, ds, i) {
   // Toolpath check
   page = await setup(browser, { ds: DATASETS[0] });
   const okTxt = await text(page, '#pathIssues');
-  check('Toolpath', 'safe job reports no problems', /All \d+ moves stay on the bed/.test(okTxt) && /Path is safe/.test(await text(page, '#pathChipText')), okTxt.slice(0, 60));
+  check('Toolpath', 'safe job reports no problems', /All \d+ moves stay on the bed/.test(okTxt) && /OK/.test(await text(page, '#pathChipText')), okTxt.slice(0, 60));
   await shot(page, '13-toolpath-ok');
   await setVal(page, 'zx', 190);     // zero point 190 mm along the bed -> card runs off the edge
   const edge = await text(page, '#pathIssues');
@@ -250,9 +318,9 @@ async function runDataset(browser, ds, i) {
   await setVal(page, 'zx', 0); await setVal(page, 'zDown', -2);
   check('Toolpath', 'negative pen-down Z is flagged as below the paper', /below the paper/.test(await text(page, '#pathIssues')));
   await setVal(page, 'zDown', 0); await setVal(page, 'ox', 5); await setVal(page, 'oy', 5);
-  check('Toolpath', 'back to safe values clears the problems', /Path is safe/.test(await text(page, '#pathChipText')));
+  check('Toolpath', 'back to safe values clears the problems', /OK/.test(await text(page, '#pathChipText')));
   await page.click('#anchorSeg button[data-v="tr"]');
-  check('Toolpath', 'top-right anchor with small offset leaves the bed (negative X/Y relative to zero is fine, bed edge is not)', /outside the bed|Path is safe/.test(await text(page, '#pathChipText') + await text(page, '#pathIssues')));
+  check('Toolpath', 'top-right anchor with small offset leaves the bed (negative X/Y relative to zero is fine, bed edge is not)', /outside the bed|OK/.test(await text(page, '#pathChipText') + await text(page, '#pathIssues')));
   await page.close();
 
   // Firmware zip (fetches stock Marlin config from GitHub and patches it in the browser)
@@ -290,7 +358,7 @@ async function runDataset(browser, ds, i) {
   check('Preview', 'preview sends nothing to the printer', true);
   await page.close();
 
-  page = await setup(browser, { viewport: { width: 420, height: 900 }, ds: DATASETS[0] }); await shot(page, '10-mobile'); await page.close();
+  page = await setup(browser, { viewport: { width: 420, height: 900 }, ds: DATASETS[0], plain: true }); await shot(page, '10-mobile'); await page.close();
 
   await browser.close(); server.close();
 

@@ -11,7 +11,7 @@
                    'drawFeed', 'travelFeed', 'ox', 'oy', 'bedW', 'bedH', 'zx', 'zy'];
   const CHECK_IDS = ['borders', 'shrink', 'showTravel'];
   const SEGS = { rotSeg: '90', modeSeg: 'z', stepSeg: '10', anchorSeg: 'bl' };
-  const state = { design: null, gc: null, job: null, homed: false, zSet: false, doneStrokes: 0 };
+  const state = { design: null, gc: null, job: null, homed: false, zSet: false, doneStrokes: 0, sel: null, selPos: {}, fwKind: null };
 
   const num = (id, d) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : d; };
   const segVal = id => $(id).querySelector('.on').dataset.v;
@@ -39,7 +39,7 @@
 
   function save() {
     const o = { labels: $('labels').value, seg: {} };
-    NUM_IDS.concat(['genPrefix', 'genStart', 'genCount', 'genSuffix', 'baud', 'cardType']).forEach(i => (o[i] = $(i).value));
+    NUM_IDS.concat(['baud', 'cardType']).forEach(i => (o[i] = $(i).value));
     CHECK_IDS.forEach(i => (o[i] = $(i).checked));
     Object.keys(SEGS).forEach(i => (o.seg[i] = segVal(i)));
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(o)); } catch (e) { /* private mode */ }
@@ -49,7 +49,7 @@
     let o; try { o = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { o = null; }
     if (!o) return;
     if (typeof o.labels === 'string') $('labels').value = o.labels;
-    NUM_IDS.concat(['genPrefix', 'genStart', 'genCount', 'genSuffix', 'baud', 'cardType']).forEach(i => { if (o[i] !== undefined) $(i).value = o[i]; });
+    NUM_IDS.concat(['baud', 'cardType']).forEach(i => { if (o[i] !== undefined) $(i).value = o[i]; });
     CHECK_IDS.forEach(i => { if (o[i] !== undefined) $(i).checked = o[i]; });
     Object.entries(o.seg || {}).forEach(([id, v]) => setSeg(id, v));
   }
@@ -113,8 +113,13 @@
   }
   function regen() {
     const s = settings(), d = state.design;
-    state.gc = GC.build(d.strokes, s);
-    const st = GC.stats(d.strokes, s);
+    buildStrips();
+    if (state.sel !== null && state.sel >= d.rows) state.sel = null;
+    const idx = d.strokes.map((_, i) => i).filter(i => state.sel === null || d.rowOf[i] === state.sel);
+    state.selIdx = idx; state.selPos = {}; idx.forEach((si, p) => (state.selPos[si] = p));
+    const selStrokes = idx.map(i => d.strokes[i]);
+    state.gc = GC.build(selStrokes, s);
+    const st = GC.stats(selStrokes, s);
     $('stLabels').textContent = d.count;
     $('stSize').textContent = `${d.width.toFixed(0)} × ${d.height.toFixed(0)}`;
     $('stStrokes').textContent = st.strokes;
@@ -124,7 +129,19 @@
     state.outOfBed = bad;
     runPathCheck();
     if (state.pv) { cancelAnimationFrame(pvRaf); pvRaf = 0; state.pv = null; $('btnPreview').querySelector('span').textContent = 'Preview moves'; }
-    draw(); drawBlocks();
+    draw(); drawBlocks(); updateUI();
+  }
+  function buildStrips() {
+    const box = $('stripSeg'), n = state.design.rows;
+    const want = ['all'].concat(Array.from({ length: n }, (_, i) => String(i + 1))).join(',');
+    if (box.dataset.k !== want) {
+      box.dataset.k = want;
+      box.innerHTML = '<button type="button" data-v="all">All</button>' + Array.from({ length: n }, (_, i) => `<button type="button" data-v="${i}">${i + 1}</button>`).join('');
+      box.onclick = e => { const b = e.target.closest('button'); if (!b) return; state.sel = b.dataset.v === 'all' ? null : +b.dataset.v; regen(); };
+    }
+    box.querySelectorAll('button').forEach(b => b.classList.toggle('on', state.sel === null ? b.dataset.v === 'all' : +b.dataset.v === state.sel && b.dataset.v !== 'all'));
+    $('stripLabel').textContent = n > 1 ? `Strips to draw (${n} strips)` : 'Strips to draw';
+    box.hidden = $('stripLabel').hidden = n < 2;
   }
 
   // ---------------------------------------------------------------- toolpath check
@@ -140,7 +157,8 @@
     const b = p.bbox, zxm = num('zx', 0), zym = num('zy', 0);
     $('pathStats').innerHTML = `<span>Travel area <b>X ${(b.minX + zxm).toFixed(0)}–${(b.maxX + zxm).toFixed(0)}, Y ${(b.minY + zym).toFixed(0)}–${(b.maxY + zym).toFixed(0)}</b> (bed coords)</span><span>Z range <b>${p.zmin.toFixed(1)} … ${p.zmax.toFixed(1)} mm</b></span><span>Ink <b>${p.drawLen.toFixed(0)} mm</b></span><span>Pen-up travel <b>${p.travelLen.toFixed(0)} mm</b></span>`;
     const chip = $('pathChip'); chip.className = 'chip ' + (p.errors ? 'err' : p.issues.length ? 'warn' : 'ok');
-    $('pathChipText').textContent = p.errors ? `${p.errors} problem${p.errors > 1 ? 's' : ''}` : p.issues.length ? 'Warnings' : 'Path is safe';
+    $('pathChipText').textContent = p.errors ? `${p.errors} problem${p.errors > 1 ? 's' : ''}` : p.issues.length ? 'Warnings' : !state.homed ? 'OK — set zero to confirm' : 'Path is safe';
+    if (!p.errors && !p.issues.length && !state.homed) chip.className = 'chip warn';
     drawProfile();
   }
   function drawProfile() {
@@ -260,16 +278,19 @@
       if ($('showTravel').checked) {
         cx.strokeStyle = css('--tertiary'); cx.globalAlpha = .6; cx.lineWidth = 1; cx.setLineDash([3, 3]); cx.beginPath();
         let cur = P(zx, zy); cx.moveTo(cur[0], cur[1]);
-        for (const st of d.strokes) { const a = P(s.ox + st[0][0], s.oy + st[0][1]); cx.lineTo(a[0], a[1]); const b = P(s.ox + st[st.length - 1][0], s.oy + st[st.length - 1][1]); cx.moveTo(b[0], b[1]); }
+        for (const st of state.selIdx.map(i => d.strokes[i])) { const a = P(s.ox + st[0][0], s.oy + st[0][1]); cx.lineTo(a[0], a[1]); const b = P(s.ox + st[st.length - 1][0], s.oy + st[st.length - 1][1]); cx.moveTo(b[0], b[1]); }
         cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1;
       }
       cx.lineWidth = Math.max(1.4, 0.45 * scale);
       d.strokes.forEach((st, i) => {
-        cx.strokeStyle = i < state.doneStrokes ? DONE : INK;
+        const p = state.selPos[i];
+        cx.globalAlpha = p === undefined ? 0.25 : 1;
+        cx.strokeStyle = p !== undefined && p < state.doneStrokes ? DONE : INK;
         cx.beginPath();
         st.forEach((pt, k) => { const a = P(s.ox + pt[0], s.oy + pt[1]); k ? cx.lineTo(a[0], a[1]) : cx.moveTo(a[0], a[1]); });
         cx.stroke();
       });
+      cx.globalAlpha = 1;
     }
     // toolpath safety overlay: travel envelope, zero point, problem moves
     const pth = state.path;
@@ -351,13 +372,14 @@
     const o = layoutOpts(), d = state.design, shape = d && cardShape(d, num('rowGap', 4));
     const dpr = window.devicePixelRatio || 1, W = tv.clientWidth;
     if (!W) return;
-    if (!shape) { tv.style.height = '90px'; tv.width = W * dpr; tv.height = 90 * dpr; tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.fillStyle = css('--on-surface-variant'); tx.font = '500 14px Roboto Flex, sans-serif'; tx.textAlign = 'center'; tx.fillText('Add some labels to see them here', W / 2, 50); return; }
+    if (!shape) { state.tbGeo = null; tv.style.height = '90px'; tv.width = W * dpr; tv.height = 90 * dpr; tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.fillStyle = css('--on-surface-variant'); tx.font = '500 14px Roboto Flex, sans-serif'; tx.textAlign = 'center'; tx.fillText('Add some labels to see them here', W / 2, 50); return; }
     const f = shape.frame, pad = 16, k = Math.min((W - 2 * pad) / f.w, 14);
     const H = Math.ceil(f.h * k + 2 * pad);
     tv.style.height = H + 'px'; tv.width = W * dpr; tv.height = H * dpr;
     tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.clearRect(0, 0, W, H);
     const ox = (W - f.w * k) / 2 - f.x * k, oy = pad + (f.y + f.h) * k;     // design (x,y up) -> px
     const R = r => [ox + r.x * k, oy - (r.y + r.h) * k, r.w * k, r.h * k];
+    state.tbGeo = { R, cells: shape.cells };
     const dark = document.documentElement.dataset.theme === 'dark';
     const frame = dark ? '#e4e7eb' : '#f6f7f9', edge = dark ? '#9aa1ab' : '#b9bfc8';
     tx.lineWidth = 1; tx.strokeStyle = edge; tx.fillStyle = frame;
@@ -426,41 +448,67 @@
   // ---------------------------------------------------------------- connection
   const chip = $('statusChip');
   function setStatus(kind, text) { chip.className = 'chip ' + kind; $('statusText').textContent = text; }
+  function fwBox(kind, title, text) { const b = $('fwStatus'); b.className = 'fwbox ' + kind; $('fwStatusTitle').textContent = title; $('fwStatusText').textContent = text; }
   printer.onLog = (t, txt, quiet) => { if (!quiet) log(t, txt); };
   printer.onState = st => {
     const btn = $('btnConnect');
     $('blob').classList.toggle('busy', st === 'connecting');
-    if (st === 'connecting') { setStatus('warn', 'Connecting…'); btn.disabled = true; }
-    if (st === 'ready') { setStatus('ok', 'Connected · ' + printer.firmware); setConnBtn(true); toast('Connected to ' + printer.firmware); }
-    if (st === 'silent') { setStatus('warn', 'Connected, no reply'); setConnBtn(true); toast('Port open but Marlin did not answer — check the baud rate.'); }
-    if (st === 'halted') { setStatus('err', 'Printer halted — reset it'); toast('Marlin halted. Power-cycle the printer, then reconnect.'); }
-    if (st === 'disconnected') { setStatus('', 'Not connected'); setConnBtn(false); endJobUI(false); state.homed = false; }
+    if (st === 'connecting') { setStatus('warn', 'Connecting…'); btn.disabled = true; fwBox('', 'Connecting…', 'Waiting for the printer to start up.'); }
+    if (st === 'ready') {
+      setConnBtn(true);
+      const info = printer.info || {};
+      if (info.drawbot) { state.fwKind = 'drawbot'; setStatus('ok', 'Connected'); fwBox('ok', 'Drawbot firmware detected', `${printer.firmware} · ready to draw.`); toast('Connected — Drawbot firmware found.'); if (!state.homed) openStep(3); }
+      else { state.fwKind = 'other'; setStatus('warn', 'Connected · stock firmware'); fwBox('warn', 'This is not the Drawbot firmware', `The printer reports “${printer.firmware}${info.machine ? ' · ' + info.machine : ''}”. Stock firmware usually refuses moves before homing and won't lower Z below 0, so the pen can't draw reliably. Download the Drawbot firmware below and flash it from an SD card.`); $('fwAdv').classList.add('open'); toast('Connected, but this printer needs the Drawbot firmware.'); }
+    }
+    if (st === 'silent') { state.fwKind = 'silent'; setStatus('warn', 'Connected, no reply'); setConnBtn(true); fwBox('err', 'The printer is not answering', 'The port opened but nothing came back. Check the cable, switch the printer on, or try a different baud rate under “Connection & console” (Ender 3 boards: 115200; flashed Drawbot firmware: 115200 or 250000).'); }
+    if (st === 'halted') { setStatus('err', 'Printer halted — reset it'); fwBox('err', 'The printer stopped itself', 'Marlin halted (usually a heater or sensor error). Power-cycle the printer, then reconnect.'); toast('Marlin halted. Power-cycle the printer, then reconnect.'); }
+    if (st === 'disconnected') { setStatus('', 'Not connected'); setConnBtn(false); endJobUI(false); state.homed = false; state.zSet = false; state.fwKind = null; fwBox('', 'Not connected', 'Connect to check which firmware your printer runs.'); $('btnReset').hidden = true; setPos(null); runPathCheck(); }
     if (st === 'paused-idle') $('progText').textContent = 'Paused';
+    updateUI();
   };
+  printer.onNotice = (kind) => {
+    if (kind === 'eeprom') { $('btnReset').hidden = false; log('sys', 'Printer says the saved settings are from a different firmware version. Press “Reset settings” in step 2 — this is normal after flashing.'); }
+  };
+  printer.onPos = p => setPos(p);
+  $('btnReset').onclick = () => { if (!need()) return; send(['M502', 'M500']); $('btnReset').hidden = true; toast('Settings reset. The EEPROM message is gone.'); };
   function setConnBtn(on) {
-    const b = $('btnConnect'); b.disabled = false; b.className = 'btn ' + (on ? 'tonal' : 'filled');
-    b.querySelector('span').textContent = on ? 'Disconnect' : 'Connect';
+    const b = $('btnConnect'); b.disabled = false; b.className = 'btn xl ' + (on ? 'tonal' : 'filled');
+    b.querySelector('span').textContent = on ? 'Disconnect' : (knownPort ? 'Reconnect' : 'Connect');
+    $('btnOtherPort').hidden = on || !knownPort;
+  }
+  let knownPort = null;
+  async function doConnect(port) {
+    try { await printer.connect(parseInt($('baud').value, 10), port); }
+    catch (e) { setConnBtn(false); setStatus('', 'Not connected'); $('blob').classList.remove('busy'); fwBox('', 'Not connected', 'Connect to check which firmware your printer runs.'); if (e.name !== 'NotFoundError') toast(/busy|in use|Failed to open/i.test(e.message) ? 'The port is busy — close Cura/Pronterface/other tabs using the printer, then try again.' : 'Could not open port: ' + e.message); try { await printer.disconnect(); } catch (_) { /* ignore */ } }
   }
   $('btnConnect').addEventListener('click', async () => {
     if (printer.connected) { await printer.disconnect(); return; }
-    try { await printer.connect(parseInt($('baud').value, 10)); }
-    catch (e) { setConnBtn(false); setStatus('', 'Not connected'); $('blob').classList.remove('busy'); if (e.name !== 'NotFoundError') toast('Could not open port: ' + e.message); try { await printer.disconnect(); } catch (_) { /* ignore */ } }
+    await doConnect(knownPort || undefined);
   });
+  $('btnOtherPort').addEventListener('click', () => { knownPort = null; doConnect(undefined); });
   if (!window.DBPrinter.supported()) {
     setStatus('err', 'Use Chrome or Edge (Web Serial)'); $('btnConnect').disabled = true;
-  }
+    fwBox('err', 'This browser can\'t talk to the printer', 'Open this page in Chrome or Edge on a computer. (Firefox and Safari do not support USB serial.)');
+  } else window.DBPrinter.knownPorts().then(ps => { knownPort = ps[0] || null; if (!printer.connected) setConnBtn(false); });
   navigator.serial && navigator.serial.addEventListener('disconnect', () => { if (printer.connected) printer.cleanup(); });
 
+  // live pen position (M114 poll while idle)
+  function setPos(p) { $('posX').textContent = p ? p.x.toFixed(1) : '–'; $('posY').textContent = p ? p.y.toFixed(1) : '–'; $('posZ').textContent = p ? p.z.toFixed(1) : '–'; }
+  setInterval(() => {
+    if (!printer.connected || document.hidden || (state.job && state.job.running) || printer.queue.length || printer.inflight.length || printer.paused) return;
+    printer.enqueue(['M114'], [-1]);
+  }, 700);
+
   // ---------------------------------------------------------------- machine controls
-  function need() { if (!printer.connected) { toast('Connect to the printer first.'); return false; } if (state.job && state.job.running) { toast('A job is running — pause or stop it first.'); return false; } return true; }
+  function need() { if (!printer.connected) { toast('Connect to the printer first (step 2).'); openStep(2); return false; } if (state.job && state.job.running) { toast('A job is running — pause or stop it first.'); return false; } return true; }
   const send = (lines, tags) => printer.enqueue(lines, tags);
   const penUpCmds = () => GC.penUp(settings());
   const liftCmds = () => segVal('modeSeg') === 'servo' ? penUpCmds() : ['G91', 'G0 Z3 F600', 'G90'];
 
-  $('btnZero').onclick = () => { if (!need()) return; send(['G92 X0 Y0 Z0', ...liftCmds()]); state.homed = true; state.zSet = true; toast('This position is now 0 X Y Z.'); };
+  $('btnZero').onclick = () => { if (!need()) return; send(['G92 X0 Y0 Z0', ...liftCmds(), 'M114']); state.homed = true; state.zSet = true; toast('Zero set. Now check the preview and draw.'); runPathCheck(); updateUI(); openStep(4); };
   $('btnGoZero').onclick = () => { if (!need()) return; send([...liftCmds(), 'G90', `G0 X0 Y0 F${settings().travelFeed}`]); };
-  $('btnOff').onclick = () => { if (!need()) return; send(['M84']); state.homed = false; };
-  $('btnSetZ').onclick = () => { if (!need()) return; send(['G92 Z0']); state.zSet = true; toast('Z = 0 is now the paper surface.'); };
+  $('btnOff').onclick = () => { if (!need()) return; send(['M84']); state.homed = false; updateUI(); runPathCheck(); };
+  $('btnSetZ').onclick = () => { if (!need()) return; send(['G92 Z0', 'M114']); state.zSet = true; toast('Z = 0 is now the paper surface.'); updateUI(); };
   $('btnPenUp').onclick = () => { if (!need()) return; send(['G90', ...penUpCmds()]); };
   $('btnPenDown').onclick = () => { if (!need()) return; send(['G90', ...GC.penDown(settings())]); };
   $('btnBounds').onclick = () => {
@@ -473,8 +521,17 @@
     if (!need()) return;
     const ax = b.dataset.jog, step = parseFloat(segVal('stepSeg')) * parseInt(b.dataset.dir, 10);
     const feed = ax === 'Z' ? 300 : 4000;
-    send(['G91', `G0 ${ax}${step} F${feed}`, 'G90']);
+    send(['G91', `G0 ${ax}${step} F${feed}`, 'G90', 'M114']);
   }));
+  // arrow keys / Page Up / Page Down jog while step 3 is open
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test((e.target.tagName || '')) || document.querySelector('dialog[open]')) return;
+    if (!document.querySelector('.step[data-step="3"]').classList.contains('open')) return;
+    const m = { ArrowLeft: ['X', -1], ArrowRight: ['X', 1], ArrowUp: ['Y', 1], ArrowDown: ['Y', -1], PageUp: ['Z', 1], PageDown: ['Z', -1] }[e.key];
+    if (!m) return;
+    e.preventDefault();
+    const b = document.querySelector(`[data-jog="${m[0]}"][data-dir="${m[1]}"]`); b.click();
+  });
   $('cmdForm').addEventListener('submit', e => {
     e.preventDefault();
     const v = $('cmd').value.trim(); if (!v) return;
@@ -484,31 +541,63 @@
 
   // ---------------------------------------------------------------- job
   function jobUI(running) {
-    $('btnStart').disabled = running; $('btnPause').disabled = !running; $('btnStop').disabled = !running;
+    $('btnStart').disabled = running; $('btnPause').disabled = !running; $('btnStop').disabled = !running; $('btnTest').disabled = $('btnDry').disabled = running;
     $('btnPause').querySelector('span').textContent = 'Pause';
     waveRun = running; kickWave();
   }
   function endJobUI(done) {
     if (state.job) state.job.running = false;
     jobUI(false);
-    if (done) { wavePct = 1; $('progText').textContent = `Done — ${state.design.count} labels drawn`; $('progPct').textContent = '100%'; toast('Finished drawing.'); }
+    if (done) { wavePct = 1; $('progText').textContent = state.job && /Test|Dry/.test(state.job.label) ? 'Done' : `Done — ${state.sel === null ? state.design.count : 'strip ' + (state.sel + 1)} drawn`; $('progPct').textContent = '100%'; toast('Finished drawing.'); }
     else { $('progText').textContent = 'Ready'; $('progPct').textContent = ''; wavePct = 0; }
     kickWave();
   }
-  $('btnStart').onclick = async () => {
-    if (!need()) return;
-    if (!state.design.strokes.length) { toast('Nothing to draw — add some labels.'); return; }
-    const warn = [];
-    if (state.outOfBed) warn.push('• The drawing extends past the bed.');
-    (state.path ? state.path.issues : []).forEach(i => warn.push('• ' + i.text + (i.count > 1 ? ` (${i.count} moves)` : '')));
-    if (!state.homed) warn.push('• Zero (Set 0 XYZ) has not been set this session.');
-    if (settings().penMode === 'z' && !state.zSet) warn.push('• Paper height (Z = 0) has not been set.');
-    if (warn.length && !(await confirmDlg('Check before drawing', warn.join('\n') + '\n\nThe pen may crash or draw in the wrong place.', 'Draw anyway'))) return;
-    const gc = state.gc;
-    state.job = { running: true, total: gc.lines.length, acked: 0, strokeOf: gc.strokeOf, lastTag: gc.lines.length - 1 };
+  function problemsFor(lines, s) {
+    const p = window.DBPath.simulate(lines, { ...s, zx: num('zx', 0), zy: num('zy', 0) }, null);
+    return p;
+  }
+  function startJob(gc, nStrokes, label) {
+    state.job = { running: true, total: gc.lines.length, acked: 0, strokeOf: gc.strokeOf, lastTag: gc.lines.length - 1, label, nStrokes };
     state.doneStrokes = 0; wavePct = 0;
-    jobUI(true); $('progText').textContent = 'Drawing…';
+    jobUI(true); $('progText').textContent = label;
     printer.enqueue(gc.lines, gc.lines.map((_, i) => i));
+  }
+  // what the Draw bar's three checks mean
+  function readiness() {
+    const p = state.path, n = state.design.strokes.length;
+    return {
+      printer: printer.connected && state.fwKind !== 'silent',
+      zero: state.homed && (settings().penMode !== 'z' || state.zSet),
+      path: !!n && !state.outOfBed && !!p && p.issues.length === 0,
+      blocking: !!n && (state.outOfBed || (p && p.errors > 0)),
+    };
+  }
+  async function guardedStart(gc, nStrokes, label, issues, opts = {}) {
+    if (!state.design.strokes.length) { toast('Nothing to draw — add some labels.'); openStep(1); return; }
+    if (!printer.connected) { toast('Connect to the printer first.'); openStep(2); return; }
+    if (state.job && state.job.running) return;
+    if (!opts.skipZero && !(state.homed && (settings().penMode !== 'z' || state.zSet))) { toast('Set zero first: move the pen to a card corner and press “Set zero here”.'); openStep(3); return; }
+    const errs = issues.filter(i => i.level === 'error');
+    if (state.outOfBed || errs.length) { toast((state.outOfBed ? 'The drawing extends past the bed' : errs[0].text) + ' — fix this before drawing.'); openStep(4); return; }
+    if (issues.length && !(await confirmDlg('Check before drawing', issues.map(i => '• ' + i.text + (i.count > 1 ? ` (${i.count} moves)` : '')).join('\n') + '\n\nThe pen may draw in the wrong place.', 'Draw anyway'))) return;
+    startJob(gc, nStrokes, label);
+  }
+  $('btnStart').onclick = () => {
+    const p = state.path;
+    guardedStart(state.gc, state.selIdx.length, state.sel === null && state.design.rows > 1 ? 'Strip 1 of ' + state.design.rows : state.sel !== null ? `Strip ${state.sel + 1}` : 'Drawing…', p ? p.issues : []);
+  };
+  $('btnDry').onclick = () => {
+    const s = settings(), d = state.design, idx = state.selIdx;
+    const dry = { ...s, zDown: s.zUp, svDown: s.svUp };
+    const gc = GC.build(idx.map(i => d.strokes[i]), dry);
+    guardedStart(gc, idx.length, 'Dry run — pen stays up', [], { dry: true });
+  };
+  $('btnTest').onclick = () => {
+    const s = settings(), r = /r/.test(segVal('anchorSeg')), t = /t/.test(segVal('anchorSeg'));
+    const sq = [[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]];
+    const gc = GC.build([sq], { ...s, ox: r ? -20 : 0, oy: t ? -20 : 0 });
+    const p = problemsFor(gc.lines, { ...s, ox: 0, oy: 0 });
+    guardedStart(gc, 1, 'Test square', p.issues);
   };
   printer.onAck = tag => {
     const j = state.job; if (!j || !j.running || tag < 0) return;
@@ -516,7 +605,8 @@
     state.doneStrokes = Math.max(0, j.strokeOf[tag]);
     wavePct = j.acked / j.total;
     $('progPct').textContent = Math.floor(wavePct * 100) + '%';
-    if (tag >= j.lastTag) { state.doneStrokes = state.design.strokes.length; endJobUI(true); }
+    if (state.design.rows > 1 && state.sel === null && j.label.startsWith('Strip')) { const si = state.selIdx[Math.min(state.doneStrokes, state.selIdx.length - 1)]; $('progText').textContent = `Strip ${(state.design.rowOf[si] || 0) + 1} of ${state.design.rows}`; }
+    if (tag >= j.lastTag) { state.doneStrokes = state.selIdx.length; endJobUI(true); }
     if (!(tag & 7)) draw();
   };
   $('btnPause').onclick = () => {
@@ -535,18 +625,92 @@
   };
 
   // ---------------------------------------------------------------- labels helpers
-  $('btnGen').onclick = () => {
-    const pre = $('genPrefix').value, suf = $('genSuffix').value, st = parseInt($('genStart').value, 10) || 0, n = Math.max(1, parseInt($('genCount').value, 10) || 1);
-    const add = Array.from({ length: n }, (_, i) => pre + (st + i) + suf).join('\n');
-    const t = $('labels'); t.value = (t.value && !t.value.endsWith('\n') ? t.value + '\n' : t.value) + add;
-    relayout(); save();
-  };
+  function expand(part) {
+    part = part.trim(); if (!part) return [];
+    const m = part.match(/^(.*?)(\d+)\s*[-–—]\s*(.*?)(\d+)(.*)$/);
+    if (m && (m[3] === '' || m[3] === m[1])) {
+      const a = +m[2], b = +m[4], w = m[2].length > 1 && m[2][0] === '0' ? m[2].length : 0, out = [];
+      if (Math.abs(b - a) > 500) return [part];
+      for (let n = a; a <= b ? n <= b : n >= b; n += a <= b ? 1 : -1) out.push(m[1] + String(n).padStart(w, '0') + m[5]);
+      return out;
+    }
+    return [part];
+  }
+  const appendLabels = lines => { const t = $('labels'); if (!lines.length) return; t.value = (t.value && !t.value.endsWith('\n') ? t.value + '\n' : t.value) + lines.join('\n'); relayout(); save(); };
+  $('btnQuick').onclick = () => { const v = $('quickAdd').value; const lines = v.split(/[,;]/).flatMap(expand); if (!lines.length) { toast('Type something like X1:1-24, or 1-10, PE, N'); return; } appendLabels(lines); $('quickAdd').value = ''; toast(`Added ${lines.length} label${lines.length > 1 ? 's' : ''}.`); };
+  $('quickAdd').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('btnQuick').click(); } });
+  $('fileImport').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const txt = await f.text();
+    const lines = txt.split(/\r?\n/).map(l => l.split(/[\t,;]/)[0].replace(/^"|"$/g, '').trim()).filter(Boolean);
+    appendLabels(lines); toast(`Imported ${lines.length} label${lines.length === 1 ? '' : 's'} from ${f.name}.`); e.target.value = '';
+  });
   $('btnClear').onclick = () => { $('labels').value = ''; relayout(); save(); };
+
+  // click a cell in the card picture to edit it
+  const edit = $('cellEdit');
+  let editIdx = -1;
+  function lineIndexOfCell(n) { const ls = $('labels').value.split(/\r?\n/); let c = -1; for (let i = 0; i < ls.length; i++) if (ls[i].trim()) { c++; if (c === n) return i; } return -1; }
+  function openEdit(n) {
+    const g = state.tbGeo; if (!g || !g.cells[n]) return;
+    commitEdit();
+    const c = g.cells[n], r = g.R(c), li = lineIndexOfCell(n);
+    editIdx = n; edit.hidden = false;
+    edit.style.left = Math.max(0, tv.offsetLeft + r[0] - 10) + 'px'; edit.style.top = (tv.offsetTop + r[1]) + 'px'; edit.style.width = Math.max(48, r[2] + 20) + 'px'; edit.style.height = Math.max(24, r[3]) + 'px';
+    edit.value = $('labels').value.split(/\r?\n/)[li] || ''; edit.focus(); edit.select();
+  }
+  function commitEdit() {
+    if (editIdx < 0) return;
+    const li = lineIndexOfCell(editIdx), n = editIdx; editIdx = -1; edit.hidden = true;
+    if (li < 0) return;
+    const ls = $('labels').value.split(/\r?\n/);
+    if (ls[li] === edit.value.trim()) return;
+    if (edit.value.trim()) ls[li] = edit.value.trim(); else ls.splice(li, 1);
+    $('labels').value = ls.join('\n'); relayout(); save();
+  }
+  tv.addEventListener('click', e => {
+    const g = state.tbGeo; if (!g) return;
+    const b = tv.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+    const n = g.cells.findIndex(c => { const r = g.R(c); return x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]; });
+    if (n >= 0) openEdit(n); else commitEdit();
+  });
+  edit.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+    else if (e.key === 'Escape') { editIdx = -1; edit.hidden = true; }
+    else if (e.key === 'Tab') { e.preventDefault(); const n = editIdx + (e.shiftKey ? -1 : 1); commitEdit(); setTimeout(() => openEdit(Math.max(0, n)), 0); }
+  });
+  edit.addEventListener('blur', () => setTimeout(commitEdit, 0));
+
+  // ---------------------------------------------------------------- steps UI
+  const steps = () => [...document.querySelectorAll('.step')];
+  function openStep(n, exclusive) {
+    steps().forEach(s => { const on = +s.dataset.step === n; if (on) s.classList.add('open'); else if (exclusive) s.classList.remove('open'); s.querySelector('.step-head').setAttribute('aria-expanded', s.classList.contains('open')); });
+    const el = document.querySelector(`.step[data-step="${n}"]`); el && el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  steps().forEach(s => s.querySelector('.step-head').addEventListener('click', () => { s.classList.toggle('open'); s.querySelector('.step-head').setAttribute('aria-expanded', s.classList.contains('open')); }));
+  document.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => { const cur = b.closest('.step'); cur.classList.remove('open'); openStep(+b.dataset.next); }));
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => openStep(+b.dataset.goto)));
+  document.querySelectorAll('[data-adv] .adv-toggle').forEach(b => b.addEventListener('click', () => b.parentElement.classList.toggle('open')));
+
+  function updateUI() {
+    const d = state.design, r = readiness(), s = settings();
+    const set = (id, ok, bad) => { const el = $(id); el.classList.toggle('ok', !!ok); el.classList.toggle('bad', !ok && !!bad); };
+    set('chkPrinter', r.printer, true); set('chkZero', r.zero, true); set('chkPath', r.path, r.blocking || (state.path && state.path.issues.length > 0));
+    const cn = (CARDS[$('cardType').value] || {}).name || 'Custom';
+    $('sum1').textContent = d.count ? `${d.count} label${d.count > 1 ? 's' : ''} · ${cn.replace(/\s*\(.*$/, '')}` : 'Add labels';
+    $('sum2').textContent = !printer.connected ? 'Not connected' : state.fwKind === 'drawbot' ? 'Drawbot firmware ✓' : state.fwKind === 'other' ? 'Needs Drawbot firmware' : 'No reply';
+    $('sum3').textContent = r.zero ? `Zero set · card from ${({ bl: 'bottom-left', br: 'bottom-right', tl: 'top-left', tr: 'top-right' })[segVal('anchorSeg')]}` : 'Zero not set';
+    $('sum4').textContent = !d.count ? '' : state.outOfBed ? 'Past the bed' : state.path ? (state.path.errors ? 'Problems found' : state.path.issues.length ? 'Warnings' : r.zero ? 'Looks safe' : 'OK so far') : '';
+    const done = { 1: d.count > 0, 2: r.printer && state.fwKind === 'drawbot', 3: r.zero, 4: r.printer && r.zero && r.path };
+    steps().forEach(st => st.classList.toggle('done', !!done[st.dataset.step]));
+    const ready = r.printer && r.zero && r.path;
+    $('btnStart').title = ready ? '' : !r.printer ? 'Connect the printer first' : !r.zero ? 'Set zero first' : 'Fix the toolpath problems first';
+  }
 
   // ---------------------------------------------------------------- wiring
   const DESIGN_IDS = ['labels', 'cellW', 'cellH', 'textH', 'pad', 'rowLen', 'rowGap', 'borders', 'shrink'];
   DESIGN_IDS.forEach(id => $(id).addEventListener('input', () => { relayout(); save(); }));
-  ['zUp', 'zDown', 'zFeed', 'svUp', 'svDown', 'svDelay', 'drawFeed', 'travelFeed', 'ox', 'oy', 'zx', 'zy', 'bedW', 'bedH', 'showTravel', 'baud', 'genPrefix', 'genStart', 'genCount', 'genSuffix']
+  ['zUp', 'zDown', 'zFeed', 'svUp', 'svDown', 'svDelay', 'drawFeed', 'travelFeed', 'ox', 'oy', 'zx', 'zy', 'bedW', 'bedH', 'showTravel', 'baud']
     .forEach(id => $(id).addEventListener('input', () => { regen(); save(); }));
 
   load(); syncMode();
@@ -573,6 +737,9 @@
     btn.disabled = false;
   };
 
-  window.DBApp = { state, settings, printer };
-  log('sys', 'Ready. Connect over USB, home X Y, set the paper height, then draw.');
+  window.DBApp = { state, settings, printer, openStep, readiness };
+  log('sys', 'Ready. Follow the four steps on the left.');
+  if (!(function () { try { return localStorage.getItem('drawbot.welcomed'); } catch (e) { return 1; } })()) $('welcome').hidden = false;
+  $('btnWelcome').onclick = () => { $('welcome').hidden = true; try { localStorage.setItem('drawbot.welcomed', '1'); } catch (e) { /* ignore */ } };
+  updateUI();
 })();

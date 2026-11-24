@@ -74,10 +74,10 @@
 
     const totalW = rows.reduce((m, r) => Math.max(m, r.length ? r[r.length - 1].x + r[r.length - 1].w : 0), 0);
     const totalH = rows.length ? rows.length * o.cellH + (rows.length - 1) * o.rowGap : 0;
-    let strokes = [];
-    const cellsOut = [];
+    const cellsOut = [], rowStrokes = [];
 
     rows.forEach((r, ri) => {
+      const strokes = []; rowStrokes.push(strokes);
       const y0 = totalH - (ri + 1) * o.cellH - ri * o.rowGap;
       const rowW = r[r.length - 1].x + r[r.length - 1].w;
       for (const item of r) {
@@ -92,8 +92,14 @@
         for (const item of r) strokes.push([[item.x + item.w, y0], [item.x + item.w, y0 + o.cellH]]);
       }
     });
-    strokes = optimize(strokes);
-    return { strokes, cells: cellsOut, width: totalW, height: totalH, count: cells.length };
+    // optimise each strip on its own (so strips can be drawn one at a time), continuing from where the last one ended
+    const strokes = [], rowOf = []; let cur = [0, 0];
+    rowStrokes.forEach((rs, ri) => {
+      const o = optimize(rs, cur);
+      o.forEach(s => { strokes.push(s); rowOf.push(ri); });
+      if (o.length) cur = o[o.length - 1][o[o.length - 1].length - 1];
+    });
+    return { strokes, rowOf, rows: rows.length, cells: cellsOut, width: totalW, height: totalH, count: cells.length };
   }
 
   // ---- Path clean-up ---------------------------------------------------------
@@ -117,7 +123,7 @@
   }
 
   /** Simplify strokes, then order them (and flip direction) by nearest-neighbour to cut travel. */
-  function optimize(strokes) {
+  function optimize(strokes, start) {
     let list = strokes.map(s => {
       const d = [s[0]];
       for (let i = 1; i < s.length; i++) if (Math.hypot(s[i][0] - d[d.length - 1][0], s[i][1] - d[d.length - 1][1]) > 0.01) d.push(s[i]);
@@ -125,7 +131,7 @@
     }).filter(s => s.length > 1);
 
     const out = [];
-    let cur = [0, 0];
+    let cur = start ? start.slice() : [0, 0];
     const used = new Uint8Array(list.length);
     for (let n = 0; n < list.length; n++) {
       let best = -1, bd = Infinity, rev = false;
