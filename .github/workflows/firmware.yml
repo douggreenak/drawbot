@@ -34,11 +34,11 @@ jobs:
         run: |
           git clone --depth 1 -b bugfix-2.1.x https://github.com/MarlinFirmware/Marlin.git Marlin
           B=https://raw.githubusercontent.com/MarlinFirmware/Configurations/bugfix-2.1.x/config/examples/Creality/Ender-3/${{ matrix.board }}
-          curl -sfL $B/Configuration.h     -o Marlin/Marlin/Configuration.h
-          curl -sfL $B/Configuration_adv.h -o Marlin/Marlin/Configuration_adv.h
+          curl -sfL --retry 5 --retry-all-errors --retry-delay 3 $B/Configuration.h     -o Marlin/Marlin/Configuration.h
+          curl -sfL --retry 5 --retry-all-errors --retry-delay 3 $B/Configuration_adv.h -o Marlin/Marlin/Configuration_adv.h
           # the stock config includes custom boot/status screens that must sit next to it
-          curl -sfL $B/_Bootscreen.h   -o Marlin/Marlin/_Bootscreen.h
-          curl -sfL $B/_Statusscreen.h -o Marlin/Marlin/_Statusscreen.h
+          curl -sfL --retry 5 --retry-all-errors --retry-delay 3 $B/_Bootscreen.h   -o Marlin/Marlin/_Bootscreen.h
+          curl -sfL --retry 5 --retry-all-errors --retry-delay 3 $B/_Statusscreen.h -o Marlin/Marlin/_Statusscreen.h
       - name: Apply the Drawbot patch
         run: python3 firmware/apply_drawbot.py Marlin
       - name: Build
