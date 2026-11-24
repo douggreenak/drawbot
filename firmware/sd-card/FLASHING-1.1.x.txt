@@ -5,7 +5,5 @@ PlatformIO (board ATmega1284P). The stock Creality bootloader must still be on t
 
 Files here:
   drawbot-....hex   the firmware (Marlin, patched for pen plotting)
-  pen-test-*.gcode  a small square to test the pen (copy to the SD card, optional)
-  marlin-config/    the Marlin settings used (reference only)
 
 NOT TESTED ON HARDWARE by the build system.

@@ -1,9 +1,7 @@
 DRAWBOT FIRMWARE - Creality 4.2.x board (4.2.2 / 4.2.7)
 =========================================================
-Everything the printer needs is in this folder:
+This folder has the firmware for your board:
   drawbot-....bin   the firmware (Marlin, patched for pen plotting)
-  pen-test-*.gcode  a small square to test the pen (optional)
-  marlin-config/    the Marlin settings used (reference only, not needed on the card)
 
 1. Use a microSD card of 32 GB or smaller, formatted FAT32 with a 4096-byte cluster size.
    Copy the .bin file to the root of the card. Only one .bin should be on the card.
@@ -14,9 +12,8 @@ Everything the printer needs is in this folder:
 4. Check: connect in the Drawbot web app; the machine name reads "Drawbot".
 5. Delete the .bin from the card afterwards.
 
-Which build? Read the big chip on the board:
-  STM32F103RET6 -> the "RET6" package        STM32F103RCT6 -> the "RCT6" package
-The wrong one will not flash or will not run.
+Make sure this folder matches the version printed on your board (4.2.2 vs 4.2.7). Works on both the
+STM32F103RET6 and RCT6 chips.
 
 NOT TESTED ON HARDWARE by the build system. If the screen stays blank, power off, remove the card and
 re-flash the original Creality firmware from creality.com, then try again.

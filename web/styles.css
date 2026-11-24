@@ -197,3 +197,6 @@ dialog p { margin: 0 0 20px; color: var(--on-surface-variant); white-space: pre-
 .pathstats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; color: var(--on-surface-variant); }
 .pathstats b { color: var(--on-surface); font-weight: 600; }
 #zProfile { display: block; width: 100%; height: 70px; }
+
+.adv summary { cursor: pointer; color: var(--primary); font-weight: 600; font-size: 13.5px; margin-bottom: 10px; }
+.adv[open] { display: flex; flex-direction: column; gap: 10px; }

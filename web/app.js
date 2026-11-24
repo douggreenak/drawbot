@@ -556,21 +556,16 @@
   relayout(); kickWave();
   // ---------------------------------------------------------------- firmware download
   const FW_RELEASE = 'https://github.com/douggreenak/drawbot/releases/latest/download/';
-  const FW_PKGS = {
-    'CrealityV422-RET6': 'Creality 4.2.2 — chip STM32F103RET6', 'CrealityV422-RCT6': 'Creality 4.2.2 — chip STM32F103RCT6',
-    'CrealityV427-RET6': 'Creality 4.2.7 — chip STM32F103RET6', 'CrealityV427-RCT6': 'Creality 4.2.7 — chip STM32F103RCT6',
-    'CrealityV1-melzi': 'Creality 1.1.x (8-bit, USB flash)',
-  };
-  $('fwBoard').innerHTML = Object.entries(FW_PKGS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const FW_BOARDS = { CrealityV422: 'Creality 4.2.2', CrealityV427: 'Creality 4.2.7', CrealityV1: 'Creality 1.1.x (8-bit)' };
+  $('fwBoard').innerHTML = Object.entries(FW_BOARDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   $('btnFirmware').onclick = () => {
-    const pkg = $('fwBoard').value;
-    const a = document.createElement('a'); a.href = `${FW_RELEASE}drawbot-sd-${pkg}.zip`; a.download = `drawbot-sd-${pkg}.zip`; a.click();
-    $('fwNote').textContent = /melzi/.test(pkg) ? 'Unzip, then flash the .hex over USB (see READ-ME-FIRST.txt).' : 'Unzip onto a FAT32 SD card (32 GB or less), put it in the powered-off printer, then switch on. See READ-ME-FIRST.txt.';
+    const a = document.createElement('a'); a.href = FW_RELEASE + 'drawbot-firmware-all.zip'; a.download = 'drawbot-firmware-all.zip'; a.click();
+    $('fwNote').textContent = 'Unzip, open the folder for your board (read the label on the main board), and follow READ-ME.txt inside it.';
   };
   $('btnConfigs').onclick = async () => {
     const btn = $('btnConfigs'); btn.disabled = true; $('fwNote').textContent = 'Fetching the latest config from GitHub…';
     try {
-      const r = await window.DBFirmware.build($('fwBoard').value.split('-')[0], $('fwServo').checked);
+      const r = await window.DBFirmware.build($('fwBoard').value, $('fwServo').checked);
       const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.filename; a.click();
       const miss = r.report.filter(l => l.startsWith('MISS'));
       $('fwNote').textContent = miss.length ? `Downloaded, but ${miss.length} setting(s) were not found: ${miss.join('; ')}.` : `Downloaded ${r.filename}: patched Marlin config (you still need to compile it).`;

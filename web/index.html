@@ -216,13 +216,12 @@
 
     <article class="card">
       <h2>Firmware</h2>
-      <p class="hint">Everything the printer needs, built from the latest Marlin: the patched firmware, flashing instructions and a pen-test G-code. Copy the zip's contents to the printer's SD card (4.2.x boards) or flash the .hex over USB (1.1.x boards).</p>
-      <label class="field"><span>Printer board</span><select id="fwBoard"></select></label>
-      <button class="btn filled" id="btnFirmware"><svg><use href="#i-download"/></svg><span>Download SD card package</span></button>
-      <div class="row">
-        <button class="btn text" id="btnConfigs"><span>Marlin configs only</span></button>
-        <label class="switch"><input type="checkbox" id="fwServo" checked><i></i><span>Servo</span></label>
-      </div>
+      <p class="hint">One zip with the patched Marlin for every supported Creality board (4.2.2, 4.2.7 and 1.1.x), built from the latest Marlin, plus flashing instructions and a pen-test G-code. Open the folder that matches the version printed on your board; 4.2.x boards flash from an SD card.</p>
+      <button class="btn filled" id="btnFirmware"><svg><use href="#i-download"/></svg><span>Download firmware (all boards)</span></button>
+      <details class="adv"><summary>Marlin configs only (to build it yourself)</summary>
+        <label class="field"><span>Board</span><select id="fwBoard"></select></label>
+        <div class="row"><label class="switch"><input type="checkbox" id="fwServo" checked><i></i><span>Servo</span></label><button class="btn tonal" id="btnConfigs"><span>Download configs</span></button></div>
+      </details>
       <p class="hint" id="fwNote"></p>
     </article>
 

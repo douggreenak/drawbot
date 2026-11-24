@@ -1,0 +1,18 @@
+DRAWBOT FIRMWARE - all supported boards in one download
+=======================================================
+Make a pen plotter out of an Ender 3. Pick ONE folder:
+
+  Board-4.2.2/      Creality 4.2.2 board  (32-bit, flashes from an SD card)
+  Board-4.2.7/      Creality 4.2.7 board  (32-bit, flashes from an SD card)
+  Board-1.1.x-8bit/ Creality 1.1.x board  (8-bit, flashed over USB, NOT from SD)
+
+How do I know my board?
+  Switch the printer off, open the bottom cover and read the label printed on the main board:
+  "V4.2.2", "V4.2.7", or "1.1.4 / 1.1.5" (8-bit). The 4.2.2 and 4.2.7 firmware are NOT interchangeable
+  (their motor pins differ), so check the label before flashing.
+  The 4.2.x builds run on both the STM32F103RET6 and RCT6 chips. Boards with a GD32 chip are not supported.
+
+Then open the folder and follow READ-ME.txt inside it.
+
+Also here: pen-test-z-lift.gcode / pen-test-servo.gcode - copy one to the SD card and print it to draw a
+20 mm test square. NOT TESTED ON HARDWARE by the build system.
